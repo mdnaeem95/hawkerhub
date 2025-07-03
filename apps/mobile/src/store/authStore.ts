@@ -1,37 +1,36 @@
+// apps/mobile/src/store/authStore.ts
 import { create } from 'zustand';
-import { MMKV } from 'react-native-mmkv';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const storage = new MMKV();
-
-interface AuthState {
+interface AuthStore {
   isAuthenticated: boolean;
   userRole: 'customer' | 'vendor' | null;
   token: string | null;
-  setAuth: (token: string, role: 'customer' | 'vendor') => void;
-  logout: () => void;
-  loadAuth: () => void;
+  setAuth: (token: string, role: 'customer' | 'vendor') => Promise<void>;
+  logout: () => Promise<void>;
+  checkAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthStore>((set) => ({
   isAuthenticated: false,
   userRole: null,
   token: null,
   
-  setAuth: (token, role) => {
-    storage.set('auth.token', token);
-    storage.set('auth.role', role);
+  setAuth: async (token: string, role: 'customer' | 'vendor') => {
+    await AsyncStorage.setItem('auth_token', token);
+    await AsyncStorage.setItem('user_role', role);
     set({ isAuthenticated: true, token, userRole: role });
   },
   
-  logout: () => {
-    storage.delete('auth.token');
-    storage.delete('auth.role');
+  logout: async () => {
+    await AsyncStorage.multiRemove(['auth_token', 'user_role']);
     set({ isAuthenticated: false, token: null, userRole: null });
   },
   
-  loadAuth: () => {
-    const token = storage.getString('auth.token');
-    const role = storage.getString('auth.role') as 'customer' | 'vendor' | null;
+  checkAuth: async () => {
+    const token = await AsyncStorage.getItem('auth_token');
+    const role = await AsyncStorage.getItem('user_role') as 'customer' | 'vendor' | null;
+    
     if (token && role) {
       set({ isAuthenticated: true, token, userRole: role });
     }
