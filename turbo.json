@@ -15,6 +15,11 @@
     },
     "clean": {
       "cache": false
+    },
+    "@hawkerhub/mobile#dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["@hawkerhub/types#build"]
     }
   }
 }
