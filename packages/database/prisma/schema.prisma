@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Hawker {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  imageUrl  String?
+  tables    Table[]
+  stalls    Stall[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Table {
+  id        String   @id @default(cuid())
+  hawkerId  String
+  number    String
+  qrCode    String   @unique
+  isActive  Boolean  @default(true)
+  hawker    Hawker   @relation(fields: [hawkerId], references: [id])
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hawkerId, number])
+  @@index([hawkerId])
+}
+
+model Stall {
+  id          String      @id @default(cuid())
+  hawkerId    String
+  name        String
+  description String?
+  qrCode      String      @unique
+  phoneNumber String
+  isActive    Boolean     @default(true)
+  menu        MenuItem[]
+  orders      Order[]
+  owner       StallOwner?
+  hawker      Hawker      @relation(fields: [hawkerId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([hawkerId])
+}
+
+model StallOwner {
+  id              String   @id @default(cuid())
+  stallId         String   @unique
+  name            String
+  email           String   @unique
+  phone           String   @unique
+  hashedPassword  String
+  isActive        Boolean  @default(true)
+  stall           Stall    @relation(fields: [stallId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([email])
+}
+
+model MenuItem {
+  id          String      @id @default(cuid())
+  stallId     String
+  name        String
+  nameZh      String?
+  nameMy      String?
+  nameTa      String?
+  description String?
+  price       Decimal     @db.Decimal(10, 2)
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  category    String
+  orderItems  OrderItem[]
+  stall       Stall       @relation(fields: [stallId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([stallId])
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  tableId     String
+  stallId     String
+  items       OrderItem[]
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  paymentMode PaymentMode
+  table       Table       @relation(fields: [tableId], references: [id])
+  stall       Stall       @relation(fields: [stallId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([tableId])
+  @@index([stallId])
+  @@index([status])
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String
+  menuItemId          String
+  quantity            Int
+  price               Decimal  @db.Decimal(10, 2)
+  specialInstructions String?
+  order               Order    @relation(fields: [orderId], references: [id])
+  menuItem            MenuItem @relation(fields: [menuItemId], references: [id])
+  createdAt           DateTime @default(now())
+
+  @@index([orderId])
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentMode {
+  CASH
+  PAYNOW
+  GRABPAY
+  PAYLAH
+}
