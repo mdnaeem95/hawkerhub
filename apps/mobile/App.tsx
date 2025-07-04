@@ -17,6 +17,16 @@ const queryClient = new QueryClient({
   },
 });
 
+if (__DEV__) {
+  // @ts-ignore
+  global.clearAppData = async () => {
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    await AsyncStorage.clear();
+    console.log('App data cleared! Restart the app.');
+  };
+  console.log('Dev mode: Run clearAppData() in console to clear all data');
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>

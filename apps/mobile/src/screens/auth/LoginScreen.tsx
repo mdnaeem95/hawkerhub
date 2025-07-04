@@ -8,20 +8,16 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
-import { CommonActions, useNavigation } from '@react-navigation/native';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { LanguageSelector } from '@/components/shared/LanguageSelector';
 import { theme, spacing, typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { authApi } from '@/services/auth.api';
-import { RootStackParamList } from 'types/navigation';
 import { TextInput } from 'react-native-paper';
 
 interface LoginForm {
@@ -35,9 +31,6 @@ export const LoginScreen: React.FC = () => {
   const [resendTimer, setResendTimer] = useState(0);
   const [userType, setUserType] = useState<'customer' | 'vendor'>('customer');
 
-  type AuthNav = NativeStackNavigationProp<RootStackParamList>
-  
-  const navigation = useNavigation<AuthNav>();
   const { setAuth } = useAuthStore();
   const otpInputRef = useRef<any>(null);
   

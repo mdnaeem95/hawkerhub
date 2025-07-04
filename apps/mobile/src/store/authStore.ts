@@ -15,10 +15,6 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   userRole: 'customer' | 'vendor' | null;
-  hasHydrated: boolean;
-  setHasHydrated: () => void;
-  justLoggedIn: boolean;
-  clearJustLoggedIn: () => void;
   
   // Actions
   setAuth: (token: string, user: User) => void;
@@ -33,30 +29,25 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       userRole: null,
-      hasHydrated: false,
-      justLoggedIn: false,
 
       setAuth: (token: string, user: User) => {
         // Set token in API client
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-        api.interceptors.request.use(config => {
-          config.headers.Authorization = `Bearer ${token}`;
-          return config
-        })
         
         set({
           token,
           user,
           isAuthenticated: true,
-          userRole: user.userType,
-          justLoggedIn: true,
+          userRole: user.userType
         });
       },
 
-      logout: () => {
+      logout: async () => {
         // Remove token from API client
         delete api.defaults.headers.common['Authorization'];
+        
+        // Clear storage
+        await AsyncStorage.removeItem('auth-storage');
         
         set({
           token: null,
@@ -70,32 +61,44 @@ export const useAuthStore = create<AuthState>()(
         const state = get();
         if (state.token) {
           try {
+            // Set token in headers
+            api.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+            
             // Verify token is still valid
             const response = await api.get('/auth/me');
-            if (response.data.success) {
+            if (response.data.success && response.data.user) {
               set({
                 user: response.data.user,
                 isAuthenticated: true,
                 userRole: response.data.user.userType
               });
             } else {
-              get().logout();
+              // Token invalid, logout
+              await get().logout();
             }
           } catch (error) {
-            get().logout();
+            console.error('Auth check error:', error);
+            // Token invalid, logout
+            await get().logout();
           }
+        } else {
+          // No token, ensure logged out state
+          set({
+            isAuthenticated: false,
+            userRole: null
+          });
         }
-      },
-
-      setHasHydrated: () => set({ hasHydrated: true }),
-
-      clearJustLoggedIn: () => {
-        set({ justLoggedIn: false });
-      },
+      }
     }),
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ 
+        token: state.token,
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+        userRole: state.userRole
+      }),
     }
   )
 );
