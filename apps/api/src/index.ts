@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { authModule } from './modules/auth/auth.module';
 import { stallRoutes } from './modules/stalls/stalls.controller';
 import { hawkerRoutes } from './modules/hawkers/hawker.controller';
+import { orderRoutes } from './modules/orders/orders.controller';
 
 // Load environment variables
 dotenv.config();
@@ -25,8 +26,9 @@ async function start() {
     
     // Register auth plugin (this adds JWT and authenticate decorator)
     await fastify.register(authModule, { prefix: '/api' });
-    await fastify.register(stallRoutes, { prefix: '/api' })
-    await fastify.register(hawkerRoutes, { prefix: '/api' })
+    await fastify.register(stallRoutes, { prefix: '/api' });
+    await fastify.register(hawkerRoutes, { prefix: '/api' });
+    await fastify.register(orderRoutes, { prefix: '/api' });
     
     // Start server
     await fastify.listen({ 

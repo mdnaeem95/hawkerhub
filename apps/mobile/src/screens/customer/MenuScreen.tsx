@@ -27,7 +27,6 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useCartStore } from '@/store/cartStore';
