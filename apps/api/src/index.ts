@@ -1,10 +1,10 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
-import { authPlugin } from './plugins/auth.plugin';
-import { authRoutes } from './modules/auth/auth.controller';
 import dotenv from 'dotenv';
 import { authModule } from './modules/auth/auth.module';
+import { stallRoutes } from './modules/stalls/stalls.controller';
+import { hawkerRoutes } from './modules/hawkers/hawker.controller';
 
 // Load environment variables
 dotenv.config();
@@ -33,6 +33,9 @@ async function start() {
     });
     
     console.log('Server running on port', process.env.PORT || 3000);
+
+    await fastify.register(stallRoutes, { prefix: '/api' })
+    await fastify.register(hawkerRoutes, { prefix: '/api' })
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

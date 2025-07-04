@@ -6,6 +6,15 @@ export const theme: MD3Theme & {
     pending: string;
     ready: string;
   };
+  borderRadius: {
+    none: number;
+    xs: number;
+    sm: number;
+    md: number;
+    lg: number;
+    xl: number;
+    full: number;
+  };
 } = {
   ...MD3LightTheme,
   colors: {
@@ -18,8 +27,8 @@ export const theme: MD3Theme & {
     surface: '#FFFFFF',
     surfaceVariant: '#F3F4F6',
     onSurfaceVariant: '#6B7280',
-    pending: '#FACC15', // vibrant yellow (pending)
-    ready: '#16A34A',   // deeper green (ready)
+    pending: '#FACC15',
+    ready: '#16A34A',
     gray: {
       50: '#FAFAFA',
       100: '#F3F4F6',
@@ -34,6 +43,15 @@ export const theme: MD3Theme & {
     },
   },
   roundness: 2,
+  borderRadius: {
+    none: 0,
+    xs: 2,
+    sm: 4,
+    md: 8,
+    lg: 12,
+    xl: 16,
+    full: 9999,
+  },
 };
 
 export const spacing = {
