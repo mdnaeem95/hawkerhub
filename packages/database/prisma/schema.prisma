@@ -38,6 +38,7 @@ model Stall {
   hawkerId    String
   name        String
   description String?
+  imageUrl    String?
   qrCode      String      @unique
   phoneNumber String
   isActive    Boolean     @default(true)

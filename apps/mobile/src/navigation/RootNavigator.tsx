@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { SplashScreen } from '@/screens/shared/SplashScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { VendorNavigator } from './VendorNavigator';
-import { CustomerNavigator } from './CustomerNavigation';
+import { CustomerNavigator } from './CustomerNavigator';
 
 export type RootStackParamList = {
   Splash: undefined;
