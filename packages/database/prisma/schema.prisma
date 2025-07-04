@@ -52,18 +52,18 @@ model Stall {
 }
 
 model StallOwner {
-  id              String   @id @default(cuid())
-  stallId         String   @unique
-  name            String
-  email           String   @unique
-  phone           String   @unique
-  hashedPassword  String
-  isActive        Boolean  @default(true)
-  stall           Stall    @relation(fields: [stallId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  stallId        String   @unique
+  name           String
+  email          String   @unique
+  phoneNumber    String   @unique
+  hashedPassword String
+  isActive       Boolean  @default(true)
+  stall          Stall    @relation(fields: [stallId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@index([email])
+  @@index([phoneNumber])
 }
 
 model MenuItem {
@@ -91,18 +91,21 @@ model Order {
   orderNumber String      @unique
   tableId     String
   stallId     String
+  customerId  String?
   items       OrderItem[]
   status      OrderStatus @default(PENDING)
   totalAmount Decimal     @db.Decimal(10, 2)
   paymentMode PaymentMode
   table       Table       @relation(fields: [tableId], references: [id])
   stall       Stall       @relation(fields: [stallId], references: [id])
+  customer    Customer?   @relation(fields: [customerId], references: [id])
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
   @@index([tableId])
   @@index([stallId])
   @@index([status])
+  @@index([customerId])
 }
 
 model OrderItem {
@@ -132,4 +135,15 @@ enum PaymentMode {
   PAYNOW
   GRABPAY
   PAYLAH
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique
+  name        String
+  email       String?
+  joinedAt    DateTime @default(now())
+  orders      Order[]
+
+  @@index([phoneNumber])
 }

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NavigationContainer } from '@react-navigation/native';
 import { RootNavigator } from '@navigation/RootNavigator';
 import { theme } from '@/constants/theme';
+import { navigationRef } from '@/services/navigation';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +22,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <PaperProvider theme={theme}>
         <SafeAreaProvider>
-          <NavigationContainer>
+          <NavigationContainer ref={navigationRef}>
             <RootNavigator />
             <StatusBar style="auto" />
           </NavigationContainer>

@@ -2,25 +2,20 @@
   "name": "hawkerhub",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "lint": "turbo run lint",
-    "clean": "turbo run clean",
-    "db:generate": "pnpm --filter @hawkerhub/database db:generate",
-    "db:push": "pnpm --filter @hawkerhub/database db:push",
-    "db:migrate": "pnpm --filter @hawkerhub/database db:migrate",
-    "db:studio": "pnpm --filter @hawkerhub/database db:studio"
+    "dev": "echo 'Run npm run dev in specific workspaces'",
+    "build": "echo 'Run npm run build in specific workspaces'",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
+    "api:dev": "npm run dev --workspace=api",
+    "mobile:dev": "npm run dev --workspace=mobile",
+    "web:dev": "npm run dev --workspace=web-admin"
   },
   "devDependencies": {
-    "turbo": "^1.11.0",
-    "typescript": "^5.3.3",
-    "prettier": "^3.1.1",
-    "@types/node": "^20.10.5"
-  },
-  "packageManager": "pnpm@8.14.0",
-  "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.3"
   }
 }

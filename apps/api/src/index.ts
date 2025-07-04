@@ -1,74 +1,40 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
-import jwt from '@fastify/jwt';
-import rateLimit from '@fastify/rate-limit';
-import { PrismaClient } from '@hawkerhub/database';
+import { authPlugin } from './plugins/auth.plugin';
+import { authRoutes } from './modules/auth/auth.controller';
+import dotenv from 'dotenv';
+import { authModule } from './modules/auth/auth.module';
 
-const prisma = new PrismaClient();
+// Load environment variables
+dotenv.config();
 
-async function buildApp() {
-  const fastify = Fastify({
-    logger: {
-      transport: {
-        target: 'pino-pretty',
-        options: {
-          translateTime: 'HH:MM:ss Z',
-          ignore: 'pid,hostname',
-        },
-      },
-    },
-  });
-
-  // Register plugins
-  await fastify.register(cors, {
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://admin.hawkerhub.sg', 'https://hawkerhub.sg']
-      : true,
-  });
-
-  await fastify.register(helmet);
-  
-  await fastify.register(jwt, {
-    secret: process.env.JWT_SECRET || 'change-this-secret-in-production',
-  });
-
-  await fastify.register(rateLimit, {
-    max: 100,
-    timeWindow: '15 minutes',
-  });
-
-  // Health check
-  fastify.get('/health', async () => {
-    return { 
-      status: 'ok', 
-      timestamp: new Date().toISOString(),
-      environment: process.env.NODE_ENV,
-    };
-  });
-
-  // Database check
-  fastify.get('/health/db', async () => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      return { status: 'ok', database: 'connected' };
-    } catch (error) {
-      return { status: 'error', database: 'disconnected' };
-    }
-  });
-
-  return fastify;
-}
+const fastify = Fastify({
+  logger: true
+});
 
 async function start() {
-  const app = await buildApp();
-  
   try {
-    const port = process.env.PORT ? parseInt(process.env.PORT) : 3000;
-    await app.listen({ port, host: '0.0.0.0' });
-    console.log(`Server listening on http://localhost:${port}`);
+    // Register plugins
+    await fastify.register(cors, {
+      origin: true,
+      credentials: true
+    });
+    
+    await fastify.register(helmet);
+    
+    // Register auth plugin (this adds JWT and authenticate decorator)
+    await fastify.register(authModule, { prefix: '/api' });
+    
+    // Start server
+    await fastify.listen({ 
+      port: Number(process.env.PORT) || 3000,
+      host: '0.0.0.0' 
+    });
+    
+    console.log('Server running on port', process.env.PORT || 3000);
   } catch (err) {
-    app.log.error(err);
+    fastify.log.error(err);
     process.exit(1);
   }
 }

@@ -1,5 +1,5 @@
 // apps/mobile/src/components/ui/Input.tsx
-import React, { useState } from 'react';
+import React, { useState, forwardRef } from 'react';
 import {
   TextInput,
   View,
@@ -11,7 +11,7 @@ import {
 import { theme, spacing } from '@constants/theme';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-interface InputProps extends TextInputProps {
+export interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
   leftIcon?: string;
@@ -19,57 +19,55 @@ interface InputProps extends TextInputProps {
   onRightIconPress?: () => void;
 }
 
-export const Input: React.FC<InputProps> = ({
-  label,
-  error,
-  leftIcon,
-  rightIcon,
-  onRightIconPress,
-  ...props
-}) => {
-  const [focused, setFocused] = useState(false);
+// ✅ ForwardRef Input component
+export const Input = forwardRef<TextInput, InputProps>(
+  ({ label, error, leftIcon, rightIcon, onRightIconPress, style, ...props }, ref) => {
+    const [focused, setFocused] = useState(false);
 
-  return (
-    <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      
-      <View style={[
-        styles.inputContainer,
-        focused && styles.inputFocused,
-        error && styles.inputError,
-      ]}>
-        {leftIcon && (
-          <Icon 
-            name={leftIcon} 
-            size={20} 
-            color={theme.colors.onSurfaceVariant}
-            style={styles.leftIcon}
-          />
-        )}
-        
-        <TextInput
-          style={[styles.input, leftIcon && styles.inputWithLeftIcon]}
-          placeholderTextColor={theme.colors.onSurfaceVariant}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
-          {...props}
-        />
-        
-        {rightIcon && (
-          <Pressable onPress={onRightIconPress} style={styles.rightIcon}>
-            <Icon 
-              name={rightIcon} 
-              size={20} 
+    return (
+      <View style={styles.container}>
+        {label && <Text style={styles.label}>{label}</Text>}
+
+        <View
+          style={[
+            styles.inputContainer,
+            focused && styles.inputFocused,
+            error && styles.inputError,
+          ]}
+        >
+          {leftIcon && (
+            <Icon
+              name={leftIcon}
+              size={20}
               color={theme.colors.onSurfaceVariant}
+              style={styles.leftIcon}
             />
-          </Pressable>
-        )}
+          )}
+
+          <TextInput
+            ref={ref}
+            style={[styles.input, leftIcon && styles.inputWithLeftIcon, style]}
+            placeholderTextColor={theme.colors.onSurfaceVariant}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            {...props}
+          />
+
+          {rightIcon && (
+            <Pressable onPress={onRightIconPress} style={styles.rightIcon}>
+              <Icon name={rightIcon} size={20} color={theme.colors.onSurfaceVariant} />
+            </Pressable>
+          )}
+        </View>
+
+        {error && <Text style={styles.error}>{error}</Text>}
       </View>
-      
-      {error && <Text style={styles.error}>{error}</Text>}
-    </View>
-  );
-};
+    );
+  }
+);
+
+// 👇 Name the component for better debugging
+Input.displayName = 'Input';
 
 const styles = StyleSheet.create({
   container: {

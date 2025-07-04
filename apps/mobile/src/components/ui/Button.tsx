@@ -6,7 +6,8 @@ import {
   ActivityIndicator, 
   StyleSheet,
   ViewStyle,
-  TextStyle 
+  TextStyle, 
+  StyleProp
 } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
@@ -25,6 +26,7 @@ interface ButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
   children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const Button: React.FC<ButtonProps> = ({
@@ -70,7 +72,7 @@ export const Button: React.FC<ButtonProps> = ({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       disabled={disabled || loading}
-      style={[buttonStyles, animatedStyle]}
+      style={[buttonStyles, styles, animatedStyle]}
     >
       {loading ? (
         <ActivityIndicator 

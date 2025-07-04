@@ -1,6 +1,6 @@
 import { MD3LightTheme, MD3Theme } from 'react-native-paper';
 
-export const theme: MD3Theme = {
+export const theme: MD3Theme & { colors: MD3Theme['colors'] & { gray: Record<number, string> } } = {
   ...MD3LightTheme,
   colors: {
     ...MD3LightTheme.colors,
@@ -12,6 +12,18 @@ export const theme: MD3Theme = {
     surface: '#FFFFFF',
     surfaceVariant: '#F3F4F6',
     onSurfaceVariant: '#6B7280',
+    gray: {
+      50: '#FAFAFA',
+      100: '#F3F4F6',
+      200: '#E5E7EB',
+      300: '#D1D5DB',
+      400: '#9CA3AF',
+      500: '#6B7280',
+      600: '#4B5563',
+      700: '#374151',
+      800: '#1F2937',
+      900: '#111827',
+    },
   },
   roundness: 2,
 };

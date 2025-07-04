@@ -41,6 +41,7 @@
     "@babel/core": "^7.25.2",
     "@babel/plugin-proposal-export-namespace-from": "^7.18.9",
     "@types/react": "~19.0.10",
+    "@types/react-dom": "^19.1.6",
     "typescript": "~5.8.3"
   },
   "private": true

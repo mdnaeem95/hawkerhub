@@ -1,12 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { useAuthStore } from '@store/authStore';
 
-// Screens
 import { SplashScreen } from '@screens/shared/SplashScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 import { CustomerNavigator } from './CustomerNavigation';
 import VendorNavigator from './VendorNavigator';
+import { navigationRef } from '@/services/navigation';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -18,7 +18,17 @@ export type RootStackParamList = {
 const Stack = createStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { isAuthenticated, userRole } = useAuthStore();
+  const { isAuthenticated, userRole, justLoggedIn, clearJustLoggedIn } = useAuthStore();
+
+  useEffect(() => {
+    if (isAuthenticated && justLoggedIn && userRole && navigationRef.isReady()) {
+      navigationRef.reset({
+        index: 0,
+        routes: [{ name: userRole === 'vendor' ? 'VendorMain' : 'CustomerMain' }],
+      });
+      clearJustLoggedIn();
+    }
+  }, [isAuthenticated, justLoggedIn, userRole]);
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
