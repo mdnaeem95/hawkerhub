@@ -15,20 +15,19 @@ import {
   FAB,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useCartStore } from '@/store/cartStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { StackNavigationProp } from '@react-navigation/stack';
 import { CustomerStackParamList } from '@/navigation/CustomerNavigator';
 
 interface Stall {
   id: string;
   name: string;
-  description?: string;
-  imageUrl?: string;
+  description?: string | null;
   isActive: boolean;
   cuisine?: string;
   rating?: number;
@@ -39,8 +38,8 @@ type StallListScreenRouteProp = RouteProp<CustomerStackParamList, 'StallList'>;
 
 export const StallListScreen: React.FC = () => {
   const navigation = useNavigation<StallListScreenNavigationProp>();
-  const route = useRoute();
-  const { hawkerId, tableNumber } = route.params as { hawkerId: string; tableNumber: string };
+  const route = useRoute<StallListScreenRouteProp>();
+  const { hawkerId, tableNumber } = route.params;
   
   const [stalls, setStalls] = useState<Stall[]>([]);
   const [filteredStalls, setFilteredStalls] = useState<Stall[]>([]);
@@ -71,18 +70,26 @@ export const StallListScreen: React.FC = () => {
   const fetchStalls = async () => {
     try {
       setLoading(true);
+
+      // Debug logging
+      console.log('API Base URL:', api.defaults.baseURL);
+      console.log('Fetching from:', `/api/hawkers/${hawkerId}/stalls`);
+      console.log('Full URL:', `${api.defaults.baseURL}/api/hawkers/${hawkerId}/stalls`);
+
       const response = await api.get(`/hawkers/${hawkerId}/stalls`);
       setStalls(response.data.stalls);
       setFilteredStalls(response.data.stalls);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching stalls:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      console.error('Error config:', error.config?.url);
       // For now, use mock data
       const mockStalls: Stall[] = [
         {
           id: '1',
           name: 'Hainanese Chicken Rice',
           description: 'Famous for tender chicken and fragrant rice',
-          imageUrl: 'https://example.com/chicken-rice.jpg',
           isActive: true,
           cuisine: 'Chinese',
           rating: 4.5,
@@ -91,7 +98,6 @@ export const StallListScreen: React.FC = () => {
           id: '2',
           name: 'Char Kway Teow',
           description: 'Wok-fried flat rice noodles with prawns',
-          imageUrl: 'https://example.com/ckt.jpg',
           isActive: true,
           cuisine: 'Chinese',
           rating: 4.3,
@@ -100,7 +106,6 @@ export const StallListScreen: React.FC = () => {
           id: '3',
           name: 'Nasi Lemak Corner',
           description: 'Coconut rice with sambal and sides',
-          imageUrl: 'https://example.com/nasi-lemak.jpg',
           isActive: true,
           cuisine: 'Malay',
           rating: 4.6,
@@ -109,7 +114,6 @@ export const StallListScreen: React.FC = () => {
           id: '4',
           name: 'Indian Rojak',
           description: 'Mixed fritters with special sauce',
-          imageUrl: 'https://example.com/rojak.jpg',
           isActive: false,
           cuisine: 'Indian',
           rating: 4.2,
@@ -150,7 +154,7 @@ export const StallListScreen: React.FC = () => {
           navigation.navigate('Menu', { 
             stallId: item.id, 
             stallName: item.name 
-          } as never);
+          });
         }
       }}
       disabled={!item.isActive}
@@ -159,7 +163,7 @@ export const StallListScreen: React.FC = () => {
         <Card.Content style={styles.cardContent}>
           <Image
             source={{ 
-              uri: item.imageUrl || 'https://via.placeholder.com/80x80?text=No+Image' 
+              uri: 'https://via.placeholder.com/80x80?text=Stall' 
             }}
             style={styles.stallImage}
           />
@@ -174,7 +178,7 @@ export const StallListScreen: React.FC = () => {
             )}
             <View style={styles.stallMeta}>
               {item.cuisine && (
-                <Chip compact style={styles.cuisineChip}>
+                <Chip compact style={styles.cuisineChip} textStyle={{ fontSize: 12 }}>
                   {item.cuisine}
                 </Chip>
               )}
@@ -220,22 +224,27 @@ export const StallListScreen: React.FC = () => {
 
       {/* Cuisine Filter */}
       {cuisineTypes.length > 0 && (
-        <FlatList
-          horizontal
-          data={['All', ...cuisineTypes]}
-          renderItem={({ item }) => (
-            <Chip
-              selected={item === 'All' ? !selectedCuisine : selectedCuisine === item}
-              onPress={() => setSelectedCuisine(item === 'All' ? null : item as string)}
-              style={styles.filterChip}
-            >
-              {item}
-            </Chip>
-          )}
-          keyExtractor={(item) => item || 'unknown'}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContainer}
-        />
+        <View style={styles.filterWrapper}>
+          <FlatList
+            horizontal
+            data={['All', ...cuisineTypes]}
+            renderItem={({ item }) => (
+              <Chip
+                selected={item === 'All' ? !selectedCuisine : selectedCuisine === item}
+                onPress={() => setSelectedCuisine(item === 'All' ? null : item as string)}
+                style={styles.filterChip}
+                mode="flat"
+                compact
+                textStyle={{ fontSize: 14 }}
+              >
+                {item}
+              </Chip>
+            )}
+            keyExtractor={(item) => item || 'unknown'}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterContainer}
+          />
+        </View>
       )}
 
       {/* Stall List */}
@@ -265,7 +274,7 @@ export const StallListScreen: React.FC = () => {
         <FAB
           icon="cart"
           label={`Cart (${cartItemCount})`}
-          onPress={() => navigation.navigate('Cart' as never)}
+          onPress={() => navigation.navigate('Cart')}
           style={styles.fab}
         />
       )}
@@ -297,13 +306,20 @@ const styles = StyleSheet.create({
   searchbar: {
     elevation: 0,
     backgroundColor: theme.colors.surfaceVariant,
+    height: 48,
+  },
+  filterWrapper: {
+    height: 48,
+    backgroundColor: theme.colors.surface,
   },
   filterContainer: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    alignItems: 'center',
   },
   filterChip: {
     marginRight: spacing.sm,
+    height: 32,
   },
   listContent: {
     padding: spacing.md,
@@ -342,6 +358,7 @@ const styles = StyleSheet.create({
   },
   cuisineChip: {
     height: 24,
+    backgroundColor: theme.colors.primaryContainer,
   },
   rating: {
     flexDirection: 'row',

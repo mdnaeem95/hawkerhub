@@ -1,16 +1,23 @@
-// apps/mobile/src/screens/customer/ScanTableScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Camera, CameraView } from 'expo-camera';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@components/ui/Button';
-import { theme, spacing } from '@constants/theme';
+import { Button } from 'react-native-paper';
+import { theme, spacing } from '@/constants/theme';
 import { useNavigation } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { CustomerStackParamList } from '@/navigation/CustomerNavigator';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+type ScanTableScreenNavigationProp = StackNavigationProp<CustomerStackParamList, 'ScanTable'>;
 
 export const ScanTableScreen: React.FC = () => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
-  const navigation = useNavigation();
+  const navigation = useNavigation<ScanTableScreenNavigationProp>();
+  
+  // Add this to check if we're in dev mode
+  const isDev = __DEV__ || process.env.NODE_ENV !== 'production';
 
   useEffect(() => {
     (async () => {
@@ -29,16 +36,42 @@ export const ScanTableScreen: React.FC = () => {
       const [, hawkerId, tableNumber] = match;
       
       // Navigate to stall list
-      //@ts-ignore
-      navigation.navigate('StallList' as never, { 
+      navigation.navigate('StallList', { 
         hawkerId, 
         tableNumber 
-      } as never);
+      });
     } else {
       // Show error
-      alert('Invalid QR code. Please scan a HawkerHub table QR code.');
-      setScanned(false);
+      Alert.alert(
+        'Invalid QR Code',
+        'Please scan a valid HawkerHub table QR code.',
+        [{ text: 'OK', onPress: () => setScanned(false) }]
+      );
     }
+  };
+
+  // Development bypass function
+  const handleDevBypass = () => {
+    // Mock hawker center data
+    const mockHawkerId = 'dev-hawker-123';
+    const mockTableNumber = 'A1';
+    
+    Alert.alert(
+      'Development Mode',
+      `Using mock data:\nHawker Center: Lau Pa Sat\nTable: ${mockTableNumber}`,
+      [
+        {
+          text: 'Continue',
+          onPress: () => {
+            navigation.navigate('StallList', { 
+              hawkerId: mockHawkerId, 
+              tableNumber: mockTableNumber 
+            });
+          }
+        },
+        { text: 'Cancel', style: 'cancel' }
+      ]
+    );
   };
 
   if (hasPermission === null) {
@@ -49,12 +82,29 @@ export const ScanTableScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.noPermission}>
+          <Icon name="camera-off" size={64} color={theme.colors.onSurfaceVariant} />
           <Text style={styles.noPermissionText}>
             Camera permission is required to scan QR codes
           </Text>
-          <Button onPress={() => Camera.requestCameraPermissionsAsync()}>
+          <Button 
+            mode="contained"
+            onPress={() => Camera.requestCameraPermissionsAsync()}
+            style={styles.permissionButton}
+          >
             Grant Permission
           </Button>
+          
+          {/* Dev bypass button when no camera permission */}
+          {isDev && (
+            <Button 
+              mode="outlined"
+              onPress={handleDevBypass}
+              style={styles.devButton}
+              icon="developer-board"
+            >
+              Skip to Stall List (Dev)
+            </Button>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -88,13 +138,45 @@ export const ScanTableScreen: React.FC = () => {
         {scanned && (
           <View style={styles.rescanContainer}>
             <Button 
+              mode="contained"
               onPress={() => setScanned(false)}
-              variant="secondary"
+              style={styles.rescanButton}
             >
               Tap to Scan Again
             </Button>
           </View>
         )}
+        
+        {/* Development bypass button - Always show in development */}
+        {isDev && (
+          <View style={styles.devContainer}>
+            <Button 
+              mode="contained"
+              onPress={handleDevBypass}
+              style={styles.devButton}
+              icon="developer-board"
+              buttonColor={theme.colors.secondary}
+              textColor={theme.colors.onSecondary}
+            >
+              Skip to Stall List (Dev Mode)
+            </Button>
+            <Text style={styles.devText}>
+              Development only - Remove in production
+            </Text>
+          </View>
+        )}
+        
+        {/* Temporary button - REMOVE THIS after testing */}
+        <View style={[styles.devContainer, { bottom: 150 }]}>
+          <Button 
+            mode="contained"
+            onPress={handleDevBypass}
+            style={styles.devButton}
+            buttonColor="#FF5722"
+          >
+            TEMP: Skip Scanner
+          </Button>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -110,12 +192,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: spacing.xl,
+    backgroundColor: theme.colors.background,
   },
   noPermissionText: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginVertical: spacing.lg,
     color: theme.colors.onSurface,
+  },
+  permissionButton: {
+    marginTop: spacing.md,
   },
   overlay: {
     flex: 1,
@@ -134,6 +220,8 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     color: 'rgba(255,255,255,0.8)',
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
   },
   scanArea: {
     width: 250,
@@ -174,8 +262,26 @@ const styles = StyleSheet.create({
   },
   rescanContainer: {
     position: 'absolute',
-    bottom: spacing.xxl,
+    bottom: 120,
     left: spacing.lg,
     right: spacing.lg,
+  },
+  rescanButton: {
+    elevation: 4,
+  },
+  devContainer: {
+    position: 'absolute',
+    bottom: spacing.xl,
+    left: spacing.lg,
+    right: spacing.lg,
+    alignItems: 'center',
+  },
+  devButton: {
+    width: '100%',
+    marginBottom: spacing.sm,
+  },
+  devText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 12,
   },
 });

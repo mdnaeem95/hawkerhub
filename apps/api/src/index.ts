@@ -25,6 +25,8 @@ async function start() {
     
     // Register auth plugin (this adds JWT and authenticate decorator)
     await fastify.register(authModule, { prefix: '/api' });
+    await fastify.register(stallRoutes, { prefix: '/api' })
+    await fastify.register(hawkerRoutes, { prefix: '/api' })
     
     // Start server
     await fastify.listen({ 
@@ -33,9 +35,6 @@ async function start() {
     });
     
     console.log('Server running on port', process.env.PORT || 3000);
-
-    await fastify.register(stallRoutes, { prefix: '/api' })
-    await fastify.register(hawkerRoutes, { prefix: '/api' })
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);
