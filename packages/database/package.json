@@ -6,12 +6,16 @@
   "types": "./src/index.ts",
   "scripts": {
     "db:generate": "prisma generate",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:reset": "prisma db push --force-reset && npm run db:seed"
   },
   "dependencies": {
-    "@prisma/client": "^5.7.1"
+    "@prisma/client": "^5.7.1",
+    "bcryptjs": "^3.0.2"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^3.0.0",
     "prisma": "^5.7.1",
     "typescript": "^5.3.3"
   }
