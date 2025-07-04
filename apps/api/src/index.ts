@@ -8,6 +8,7 @@ import { socketPlugin } from './plugins/socket.plugin';
 import { stallRoutes } from './modules/stalls/stalls.controller';
 import { hawkerRoutes } from './modules/hawkers/hawker.controller';
 import { orderRoutes } from './modules/orders/orders.controller';
+import { vendorRoutes } from './modules/vendor/vendor.controller';
 import { AuthService } from './modules/auth/auth.service';
 
 // Load environment variables
@@ -124,6 +125,7 @@ async function start() {
       await fastify.register(stallRoutes, { prefix: '/api' });
       await fastify.register(hawkerRoutes, { prefix: '/api' });
       await fastify.register(orderRoutes, { prefix: '/api' });
+      await fastify.register(vendorRoutes, { prefix: '/api' });
     });
     
     // Start server

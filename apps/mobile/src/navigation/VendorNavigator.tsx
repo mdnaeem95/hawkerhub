@@ -1,47 +1,76 @@
+// apps/mobile/src/navigation/VendorNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '@/constants/theme';
-import DashboardScreen from '@/screens/vendor/DashboardScreen';
-import OrdersScreen from '@/screens/vendor/OrdersScreen';
-import MenuScreen from '@/screens/vendor/MenuScreen';
+
+// Import vendor screens
+import { DashboardScreen } from '@/screens/vendor/DashboardScreen';
+import { VendorOrdersScreen } from '@/screens/vendor/OrdersScreen';
 import ProfileScreen from '@/screens/vendor/ProfileScreen';
+import { MenuManagementScreen } from '@/screens/vendor/MenuScreen';
+import { AnalyticsScreen } from '@/screens/vendor/AnalyticsScreen';
 
 export type VendorTabParamList = {
   Dashboard: undefined;
   Orders: undefined;
   Menu: undefined;
+  Analytics: undefined;
   Profile: undefined;
 };
 
-const Tab = createBottomTabNavigator<VendorTabParamList>();
+export type VendorStackParamList = {
+  VendorTabs: undefined;
+  OrderDetails: { orderId: string };
+  AddMenuItem: undefined;
+  EditMenuItem: { itemId: string };
+  Settings: undefined;
+};
 
-export const VendorNavigator: React.FC = () => {
+const Tab = createBottomTabNavigator<VendorTabParamList>();
+const Stack = createStackNavigator<VendorStackParamList>();
+
+function VendorTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: string = '';
+          let iconName: string;
 
-          if (route.name === 'Dashboard') {
-            iconName = 'view-dashboard';
-          } else if (route.name === 'Orders') {
-            iconName = 'clipboard-list';
-          } else if (route.name === 'Menu') {
-            iconName = 'food';
-          } else if (route.name === 'Profile') {
-            iconName = 'account';
+          switch (route.name) {
+            case 'Dashboard':
+              iconName = focused ? 'view-dashboard' : 'view-dashboard-outline';
+              break;
+            case 'Orders':
+              iconName = focused ? 'clipboard-list' : 'clipboard-list-outline';
+              break;
+            case 'Menu':
+              iconName = focused ? 'food' : 'food-outline';
+              break;
+            case 'Analytics':
+              iconName = focused ? 'chart-line' : 'chart-line-variant';
+              break;
+            case 'Profile':
+              iconName = focused ? 'account' : 'account-outline';
+              break;
+            default:
+              iconName = 'circle';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.gray[400],
-        headerShown: false,
+        tabBarInactiveTintColor: theme.colors.gray[500],
         tabBarStyle: {
-          borderTopWidth: 1,
-          borderTopColor: theme.colors.gray[200],
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
         },
+        tabBarLabelStyle: {
+          fontSize: 12,
+        },
+        headerShown: false,
       })}
     >
       <Tab.Screen 
@@ -51,13 +80,21 @@ export const VendorNavigator: React.FC = () => {
       />
       <Tab.Screen 
         name="Orders" 
-        component={OrdersScreen}
-        options={{ title: 'Orders' }}
+        component={VendorOrdersScreen}
+        options={{ 
+          title: 'Orders',
+          tabBarBadge: 3, // Show pending orders count
+        }}
       />
       <Tab.Screen 
         name="Menu" 
-        component={MenuScreen}
+        component={MenuManagementScreen}
         options={{ title: 'Menu' }}
+      />
+      <Tab.Screen 
+        name="Analytics" 
+        component={AnalyticsScreen}
+        options={{ title: 'Analytics' }}
       />
       <Tab.Screen 
         name="Profile" 
@@ -66,4 +103,27 @@ export const VendorNavigator: React.FC = () => {
       />
     </Tab.Navigator>
   );
-};
+}
+
+export function VendorNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.colors.primary,
+        },
+        headerTintColor: 'white',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+      }}
+    >
+      <Stack.Screen 
+        name="VendorTabs" 
+        component={VendorTabs}
+        options={{ headerShown: false }}
+      />
+      {/* Add other vendor stack screens here as needed */}
+    </Stack.Navigator>
+  );
+}
