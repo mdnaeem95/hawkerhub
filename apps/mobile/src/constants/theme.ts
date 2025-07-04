@@ -5,6 +5,9 @@ export const theme: MD3Theme & {
     gray: Record<number, string>;
     pending: string;
     ready: string;
+    success: string;
+    info: string;
+    warning: string;
   };
   borderRadius: {
     none: number;
@@ -23,6 +26,9 @@ export const theme: MD3Theme & {
     secondary: '#F4B942',
     tertiary: '#22C55E',
     error: '#EF4444',
+    success: '#10B981',
+    info: '#3B82F6',    // Blue-500
+    warning: '#F97316',
     background: '#FAFAFA',
     surface: '#FFFFFF',
     surfaceVariant: '#F3F4F6',
