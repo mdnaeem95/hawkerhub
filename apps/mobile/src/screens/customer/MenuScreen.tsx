@@ -1,3 +1,4 @@
+// apps/mobile/src/screens/customer/MenuScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -42,7 +43,7 @@ interface MenuItem {
   nameMy?: string;
   nameTa?: string;
   description?: string;
-  price: number;
+  price: number | string | { toString(): string }; // Handle Prisma Decimal type
   imageUrl?: string;
   isAvailable: boolean;
   category: string;
@@ -98,67 +99,11 @@ export const MenuScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Error fetching menu:', error);
-      // Mock data for development
-      const mockItems: MenuItem[] = [
-        {
-          id: '1',
-          name: 'Hainanese Chicken Rice',
-          nameZh: '海南鸡饭',
-          description: 'Tender poached chicken with fragrant rice',
-          price: 5.50,
-          isAvailable: true,
-          category: 'Rice Dishes',
-        },
-        {
-          id: '2',
-          name: 'Roasted Chicken Rice',
-          nameZh: '烧鸡饭',
-          description: 'Crispy roasted chicken with fragrant rice',
-          price: 6.00,
-          isAvailable: true,
-          category: 'Rice Dishes',
-        },
-        {
-          id: '3',
-          name: 'Chicken Soup',
-          nameZh: '鸡汤',
-          description: 'Clear chicken broth with herbs',
-          price: 3.00,
-          isAvailable: true,
-          category: 'Soups',
-        },
-        {
-          id: '4',
-          name: 'Iced Lemon Tea',
-          nameZh: '冰柠檬茶',
-          description: 'Refreshing iced tea with lemon',
-          price: 2.50,
-          isAvailable: true,
-          category: 'Beverages',
-        },
-        {
-          id: '5',
-          name: 'Chicken Set',
-          nameZh: '鸡肉套餐',
-          description: 'Half chicken rice + soup + drink',
-          price: 12.00,
-          isAvailable: false,
-          category: 'Set Meals',
-        },
-      ];
-      
-      setMenuItems(mockItems);
-      
-      const grouped = mockItems.reduce((acc: GroupedMenu, item: MenuItem) => {
-        if (!acc[item.category]) {
-          acc[item.category] = [];
-        }
-        acc[item.category].push(item);
-        return acc;
-      }, {});
-      
-      setGroupedMenu(grouped);
-      setSelectedCategory(Object.keys(grouped)[0]);
+      Alert.alert(
+        'Error',
+        'Failed to load menu items. Please try again.',
+        [{ text: 'OK' }]
+      );
     } finally {
       setLoading(false);
     }
@@ -179,7 +124,7 @@ export const MenuScreen: React.FC = () => {
       stallId,
       stallName,
       name: selectedItem.name,
-      price: selectedItem.price,
+      price: Number(selectedItem.price),
       quantity,
       specialInstructions: specialInstructions.trim() || undefined,
       imageUrl: selectedItem.imageUrl,
@@ -216,7 +161,7 @@ export const MenuScreen: React.FC = () => {
             </Text>
           )}
           <Text variant="titleMedium" style={styles.itemPrice}>
-            ${item.price.toFixed(2)}
+            ${typeof item.price === 'number' ? item.price.toFixed(2) : Number(item.price).toFixed(2)}
           </Text>
         </View>
         
@@ -237,7 +182,7 @@ export const MenuScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -257,6 +202,8 @@ export const MenuScreen: React.FC = () => {
                 selected={selectedCategory === category}
                 onPress={() => setSelectedCategory(category)}
                 style={styles.categoryChip}
+                mode="flat"
+                compact
               >
                 {category} ({groupedMenu[category].length})
               </Chip>
@@ -346,7 +293,7 @@ export const MenuScreen: React.FC = () => {
                     <View style={styles.priceSummary}>
                       <Text variant="titleMedium">Total</Text>
                       <Text variant="titleLarge" style={styles.totalPrice}>
-                        ${(selectedItem.price * quantity).toFixed(2)}
+                        ${(Number(selectedItem.price) * quantity).toFixed(2)}
                       </Text>
                     </View>
                     
@@ -391,19 +338,25 @@ const styles = StyleSheet.create({
   categoryTabs: {
     backgroundColor: theme.colors.surface,
     maxHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.surfaceVariant,
   },
   categoryTabsContent: {
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
+    alignItems: 'center',
   },
   categoryChip: {
     marginRight: spacing.sm,
+    height: 36,
   },
   menuList: {
     padding: spacing.md,
+    paddingBottom: 80, // Space for FAB
   },
   menuCard: {
     marginBottom: spacing.sm,
+    elevation: 2,
   },
   unavailableCard: {
     opacity: 0.7,
@@ -436,6 +389,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 8,
+    backgroundColor: theme.colors.surfaceVariant,
   },
   unavailableOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -467,6 +421,7 @@ const styles = StyleSheet.create({
     margin: spacing.lg,
     padding: spacing.lg,
     borderRadius: theme.borderRadius.lg,
+    maxHeight: '80%',
   },
   modalTitle: {
     fontWeight: '600',
@@ -502,6 +457,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.surfaceVariant,
   },
   totalPrice: {
     color: theme.colors.primary,
@@ -515,3 +473,5 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+export default MenuScreen;

@@ -9,8 +9,8 @@ import OrdersScreen from '@/screens/customer/OrdersScreen';
 import ProfileScreen from '@/screens/customer/ProfileScreen';
 import { createStackNavigator } from '@react-navigation/stack';
 import { StallListScreen } from '@/screens/customer/StallListScreen';
-import MenuScreen from '@/screens/vendor/MenuScreen';
 import CartScreen from '@/screens/customer/CartScreen';
+import { MenuScreen } from '@/screens/customer/MenuScreen';
 
 export type CustomerStackParamList = {
   ScanTable: undefined;
