@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import dotenv from 'dotenv';
 import fastifyJwt from '@fastify/jwt';
+import { socketPlugin } from './plugins/socket.plugin';
 import { stallRoutes } from './modules/stalls/stalls.controller';
 import { hawkerRoutes } from './modules/hawkers/hawker.controller';
 import { orderRoutes } from './modules/orders/orders.controller';
@@ -49,7 +50,12 @@ async function start() {
       credentials: true
     });
     
-    await fastify.register(helmet);
+    await fastify.register(helmet, {
+      contentSecurityPolicy: false, // Disable for Socket.io
+    });
+    
+    // Register Socket.io plugin
+    await fastify.register(socketPlugin);
     
     // Register JWT plugin at the root level
     await fastify.register(fastifyJwt, {

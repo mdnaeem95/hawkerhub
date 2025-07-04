@@ -25,6 +25,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { ordersApi } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
+import { useSocket, useSocketConnection } from '@/hooks/useSocket';
+import { Snackbar } from 'react-native-paper';
 
 interface OrderItem {
   id: string;
@@ -68,6 +70,46 @@ const OrdersScreen: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [notification, setNotification] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'success' | 'info' | 'error';
+  }>({ visible: false, message: '', type: 'info' });
+
+  useSocketConnection();
+
+    // Handle real-time order updates
+    useSocket('order:updated', useCallback((updatedOrder: Order) => {
+      console.log('Order updated via socket:', updatedOrder);
+      
+      setOrders(prevOrders => {
+        const index = prevOrders.findIndex(o => o.id === updatedOrder.id);
+        if (index !== -1) {
+          const newOrders = [...prevOrders];
+          newOrders[index] = updatedOrder;
+          return newOrders;
+        }
+        return prevOrders;
+      });
+
+      // Show notification based on status
+      const statusMessages = {
+        'PREPARING': '👨‍🍳 Your order is being prepared!',
+        'READY': '✅ Your order is ready for collection!',
+        'COMPLETED': '🎉 Order completed. Thank you!',
+        'CANCELLED': '❌ Your order has been cancelled.'
+      };
+
+      const message = statusMessages[updatedOrder.status as keyof typeof statusMessages];
+      if (message) {
+        setNotification({
+          visible: true,
+          message: `Order #${updatedOrder.orderNumber}: ${message}`,
+          type: updatedOrder.status === 'CANCELLED' ? 'error' : 
+                updatedOrder.status === 'READY' ? 'success' : 'info'
+        });
+      }
+    }, []));
 
   // Fetch orders
   const fetchOrders = async (showLoader = true) => {
@@ -115,26 +157,23 @@ const OrdersScreen: React.FC = () => {
     }
   };
 
+  // Handle new orders created
+  useSocket('order:created', useCallback((newOrder: Order) => {
+    console.log('New order created via socket:', newOrder);
+    
+    setOrders(prevOrders => [newOrder, ...prevOrders]);
+    
+    setNotification({
+      visible: true,
+      message: `Order #${newOrder.orderNumber} placed successfully!`,
+      type: 'success'
+    });
+  }, []));
+
   // Refresh orders when screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchOrders();
-      
-      // Set up polling for active orders
-      const activeOrdersExist = orders.some(order => 
-        ['PENDING', 'PREPARING', 'READY'].includes(order.status)
-      );
-      
-      let interval: NodeJS.Timeout;
-      if (activeOrdersExist) {
-        interval = setInterval(() => {
-          fetchOrders(false);
-        }, 5000); // Poll every 5 seconds
-      }
-      
-      return () => {
-        if (interval) clearInterval(interval);
-      };
     }, [])
   );
 
@@ -304,6 +343,25 @@ const OrdersScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       />
+
+      {/* Notification Snackbar */}
+      <Snackbar
+        visible={notification.visible}
+        onDismiss={() => setNotification(prev => ({ ...prev, visible: false }))}
+        duration={4000}
+        action={{
+          label: 'Dismiss',
+          onPress: () => setNotification(prev => ({ ...prev, visible: false })),
+        }}
+        style={{
+          backgroundColor: 
+            notification.type === 'success' ? theme.colors.success :
+            notification.type === 'error' ? theme.colors.error :
+            theme.colors.info
+        }}
+      >
+        {notification.message}
+      </Snackbar>
     </SafeAreaView>
   );
 };

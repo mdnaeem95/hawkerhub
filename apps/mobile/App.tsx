@@ -7,6 +7,9 @@ import { NavigationContainer } from '@react-navigation/native';
 import { RootNavigator } from '@navigation/RootNavigator';
 import { theme } from '@/constants/theme';
 import { navigationRef } from '@/services/navigation';
+import { useAuthStore } from '@/store/authStore';
+import { useEffect } from 'react';
+import { socketService } from '@/services/socket.service';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,15 +30,32 @@ if (__DEV__) {
   console.log('Dev mode: Run clearAppData() in console to clear all data');
 }
 
+function AppContent() {
+  const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    // Connect socket when user is authenticated
+    if (isAuthenticated) {
+      socketService.connect();
+    } else {
+      socketService.disconnect();
+    }
+  }, [isAuthenticated]);
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <RootNavigator />
+      <StatusBar style="auto" />
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <PaperProvider theme={theme}>
         <SafeAreaProvider>
-          <NavigationContainer ref={navigationRef}>
-            <RootNavigator />
-            <StatusBar style="auto" />
-          </NavigationContainer>
+          <AppContent />
         </SafeAreaProvider>
       </PaperProvider>
     </QueryClientProvider>

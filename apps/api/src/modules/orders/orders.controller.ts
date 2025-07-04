@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
+import { emitNewOrder, emitOrderUpdate } from '../../plugins/socket.plugin';
 
 const prisma = new PrismaClient();
 
@@ -110,9 +111,15 @@ export async function orderRoutes(fastify: FastifyInstance) {
             }
           },
           stall: true,
-          table: true
+          table: {
+            include: {
+                hawker: true
+            }
+          }
         }
       });
+
+      emitNewOrder(fastify.io, order);
 
       // TODO: Send notification to stall owner
       // TODO: Generate payment QR if PayNow/GrabPay
@@ -253,8 +260,10 @@ export async function orderRoutes(fastify: FastifyInstance) {
         data: { 
             status: status as any,
             updatedAt: new Date()
-        }
+        },
         });
+
+        emitOrderUpdate(fastify.io, updatedOrder);
 
         // TODO: Send notifications
 
