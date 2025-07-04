@@ -141,14 +141,21 @@ export async function orderRoutes(fastify: FastifyInstance) {
     preHandler: fastify.authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
+      console.log('[Orders] Getting my orders');
+      console.log('[Orders] request.user:', request.user);
+      console.log('[Orders] Authorization header:', request.headers.authorization);
+      
       const customerId = request.user?.id;
 
       if (!customerId) {
+        console.error('[Orders] No customerId found in request.user');
         return reply.code(401).send({
           success: false,
           message: 'User not authenticated'
         });
       }
+
+      console.log('[Orders] Fetching orders for customer:', customerId);
 
       const orders = await prisma.order.findMany({
         where: { customerId },
@@ -164,6 +171,8 @@ export async function orderRoutes(fastify: FastifyInstance) {
         orderBy: { createdAt: 'desc' }
       });
 
+      console.log(`[Orders] Found ${orders.length} orders`);
+
       return reply.send({
         success: true,
         orders: orders.map(order => ({
@@ -177,6 +186,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
       });
     } catch (error) {
       fastify.log.error(error);
+      console.error('[Orders] Error:', error);
       return reply.code(500).send({ 
         success: false,
         message: 'Failed to fetch orders' 

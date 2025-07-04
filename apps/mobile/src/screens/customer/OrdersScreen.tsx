@@ -1,3 +1,4 @@
+// apps/mobile/src/screens/customer/OrdersScreen.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,6 +7,7 @@ import {
   RefreshControl,
   SectionList,
   Image,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -21,7 +23,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
-import { api } from '@/services/api';
+import { ordersApi } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
 interface OrderItem {
@@ -72,13 +74,41 @@ const OrdersScreen: React.FC = () => {
     try {
       if (showLoader) setLoading(true);
       
-      const response = await api.get('/orders/my-orders');
+      // Debug logging in development
+      if (__DEV__) {
+        console.log('Fetching orders...');
+        const { authDebug } = require('@/utils/authDebug');
+        await authDebug.fullDebug();
+      }
+      
+      const response = await ordersApi.getMyOrders();
       
       if (response.data.success) {
         setOrders(response.data.orders);
+        console.log(`Fetched ${response.data.orders.length} orders`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching orders:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      // Show error to user if needed
+      if (error.response?.status === 401) {
+        console.error('Authentication error - user may need to log in again');
+        // You might want to show an alert or toast here
+        Alert.alert(
+          'Authentication Error',
+          'Please log in again to continue',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // The interceptor will handle logout
+              }
+            }
+          ]
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -91,15 +121,15 @@ const OrdersScreen: React.FC = () => {
       fetchOrders();
       
       // Set up polling for active orders
-      const activeOrdersExist = orders.some(
-        order => ['PENDING', 'PREPARING', 'READY'].includes(order.status)
+      const activeOrdersExist = orders.some(order => 
+        ['PENDING', 'PREPARING', 'READY'].includes(order.status)
       );
       
       let interval: NodeJS.Timeout;
       if (activeOrdersExist) {
         interval = setInterval(() => {
           fetchOrders(false);
-        }, 10000); // Poll every 10 seconds
+        }, 5000); // Poll every 5 seconds
       }
       
       return () => {
@@ -108,214 +138,116 @@ const OrdersScreen: React.FC = () => {
     }, [])
   );
 
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchOrders(false);
+  };
+
   // Group orders by status
-  const groupOrdersByStatus = (): OrderSection[] => {
-    const active = orders.filter(order => 
+  const sections: OrderSection[] = React.useMemo(() => {
+    const activeOrders = orders.filter(order => 
       ['PENDING', 'PREPARING', 'READY'].includes(order.status)
     );
-    const completed = orders.filter(order => 
+    const pastOrders = orders.filter(order => 
       ['COMPLETED', 'CANCELLED'].includes(order.status)
     );
 
-    const sections: OrderSection[] = [];
+    const result: OrderSection[] = [];
     
-    if (active.length > 0) {
-      sections.push({ title: 'Active Orders', data: active });
+    if (activeOrders.length > 0) {
+      result.push({ title: 'Active Orders', data: activeOrders });
     }
     
-    if (completed.length > 0) {
-      sections.push({ title: 'Past Orders', data: completed });
+    if (pastOrders.length > 0) {
+      result.push({ title: 'Past Orders', data: pastOrders });
     }
     
-    return sections;
-  };
+    return result;
+  }, [orders]);
 
-  // Get status color and icon
-  const getStatusInfo = (status: string) => {
+  const getStatusColor = (status: Order['status']) => {
     switch (status) {
-      case 'PENDING':
-        return { 
-          color: theme.colors.warning, 
-          icon: 'clock-outline',
-          text: 'Order Placed',
-          progress: 0.25
-        };
-      case 'PREPARING':
-        return { 
-          color: theme.colors.info, 
-          icon: 'chef-hat',
-          text: 'Preparing',
-          progress: 0.5
-        };
-      case 'READY':
-        return { 
-          color: theme.colors.success, 
-          icon: 'check-circle',
-          text: 'Ready for Pickup',
-          progress: 0.75
-        };
-      case 'COMPLETED':
-        return { 
-          color: theme.colors.primary, 
-          icon: 'check-all',
-          text: 'Completed',
-          progress: 1
-        };
-      case 'CANCELLED':
-        return { 
-          color: theme.colors.error, 
-          icon: 'close-circle',
-          text: 'Cancelled',
-          progress: 0
-        };
-      default:
-        return { 
-          color: theme.colors.onSurfaceVariant, 
-          icon: 'help-circle',
-          text: status,
-          progress: 0
-        };
+      case 'PENDING': return theme.colors.warning;
+      case 'PREPARING': return theme.colors.info;
+      case 'READY': return theme.colors.success;
+      case 'COMPLETED': return theme.colors.gray[500];
+      case 'CANCELLED': return theme.colors.error;
+      default: return theme.colors.gray[500];
     }
   };
 
-  // Calculate estimated time
-  const getEstimatedTime = (order: Order) => {
-    const created = new Date(order.createdAt);
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - created.getTime()) / 60000);
-    
-    switch (order.status) {
-      case 'PENDING':
-        return '10-15 mins';
-      case 'PREPARING':
-        return '5-10 mins';
-      case 'READY':
-        return 'Ready now!';
-      default:
-        return null;
+  const getStatusText = (status: Order['status']) => {
+    switch (status) {
+      case 'PENDING': return 'Waiting for confirmation';
+      case 'PREPARING': return 'Preparing your order';
+      case 'READY': return 'Ready for collection';
+      case 'COMPLETED': return 'Completed';
+      case 'CANCELLED': return 'Cancelled';
+      default: return status;
     }
   };
 
-  // Format time ago
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / 60000);
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes} mins ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)} hours ago`;
-    return date.toLocaleDateString();
-  };
-
-  const renderOrder = ({ item: order }: { item: Order }) => {
-    const statusInfo = getStatusInfo(order.status);
-    const estimatedTime = getEstimatedTime(order);
-    const isActive = ['PENDING', 'PREPARING', 'READY'].includes(order.status);
-    
-    return (
-      <Card style={styles.orderCard}>
-        {/* Order Header */}
-        <Card.Content>
-          <View style={styles.orderHeader}>
-            <View style={styles.orderInfo}>
-              <Text variant="titleMedium" style={styles.orderNumber}>
-                Order #{order.orderNumber}
-              </Text>
-              <Text variant="bodySmall" style={styles.stallName}>
-                {order.stall.name} • Table {order.table.number}
-              </Text>
-            </View>
+  const renderOrderItem = ({ item: order }: { item: Order }) => (
+    <Card style={styles.orderCard} mode="elevated">
+      <Card.Content>
+        <View style={styles.orderHeader}>
+          <View>
+            <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>
+            <Text style={styles.stallName}>{order.stall.name}</Text>
+            <Text style={styles.tableNumber}>Table {order.table.number}</Text>
+          </View>
+          <View style={styles.orderHeaderRight}>
             <Chip
-              icon={statusInfo.icon}
-              style={[styles.statusChip, { backgroundColor: statusInfo.color }]}
+              mode="flat"
+              style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
               textStyle={styles.statusText}
             >
-              {statusInfo.text}
+              {order.status}
             </Chip>
+            <Text style={styles.totalAmount}>${order.totalAmount.toFixed(2)}</Text>
           </View>
+        </View>
 
-          {/* Progress Bar for Active Orders */}
-          {isActive && (
-            <View style={styles.progressContainer}>
-              <ProgressBar
-                progress={statusInfo.progress}
-                color={statusInfo.color}
-                style={styles.progressBar}
-              />
-              {estimatedTime && (
-                <Text variant="bodySmall" style={styles.estimatedTime}>
-                  Est. {estimatedTime}
-                </Text>
-              )}
-            </View>
-          )}
+        <Divider style={styles.divider} />
 
-          <Divider style={styles.divider} />
-
-          {/* Order Items */}
-          <View style={styles.itemsContainer}>
-            {order.items.map((item, index) => (
-              <View key={item.id} style={styles.orderItem}>
-                <Text variant="bodyMedium">
-                  {item.quantity}x {item.menuItem.name}
-                </Text>
-                {item.specialInstructions && (
-                  <Text variant="bodySmall" style={styles.specialInstructions}>
-                    Note: {item.specialInstructions}
-                  </Text>
-                )}
-              </View>
-            ))}
-          </View>
-
-          {/* Order Footer */}
-          <View style={styles.orderFooter}>
-            <View>
-              <Text variant="bodySmall" style={styles.footerLabel}>
-                Total: ${order.totalAmount.toFixed(2)}
+        <View style={styles.itemsContainer}>
+          {order.items.map((item, index) => (
+            <View key={item.id} style={styles.orderItem}>
+              <Text style={styles.itemQuantity}>{item.quantity}x</Text>
+              <Text style={styles.itemName} numberOfLines={1}>
+                {item.menuItem.name}
               </Text>
-              <Text variant="bodySmall" style={styles.footerLabel}>
-                {formatTimeAgo(order.createdAt)}
+              <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+            </View>
+          ))}
+        </View>
+
+        {['PENDING', 'PREPARING'].includes(order.status) && (
+          <>
+            <Divider style={styles.divider} />
+            <View style={styles.statusContainer}>
+              <Icon name="clock-outline" size={20} color={getStatusColor(order.status)} />
+              <Text style={[styles.statusMessage, { color: getStatusColor(order.status) }]}>
+                {getStatusText(order.status)}
               </Text>
             </View>
-            
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              {order.status === 'READY' && (
-                <Button
-                  mode="contained"
-                  compact
-                  onPress={() => {
-                    // TODO: Mark as collected
-                  }}
-                  style={styles.collectButton}
-                >
-                  Mark as Collected
-                </Button>
-              )}
-              {order.status === 'COMPLETED' && (
-                <Button
-                  mode="outlined"
-                  compact
-                  onPress={() => {
-                    // TODO: Reorder
-                  }}
-                >
-                  Reorder
-                </Button>
-              )}
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
-    );
-  };
+          </>
+        )}
 
-  const renderSectionHeader = ({ section }: { section: OrderSection }) => (
-    <Text variant="titleMedium" style={styles.sectionHeader}>
-      {section.title}
-    </Text>
+        {order.status === 'READY' && (
+          <>
+            <Divider style={styles.divider} />
+            <Button
+              mode="contained"
+              onPress={() => {/* Handle collection */}}
+              style={styles.collectButton}
+            >
+              Mark as Collected
+            </Button>
+          </>
+        )}
+      </Card.Content>
+    </Card>
   );
 
   if (loading) {
@@ -323,40 +255,29 @@ const OrdersScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading orders...
-          </Text>
+          <Text style={styles.loadingText}>Loading orders...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  const sections = groupOrdersByStatus();
-
-  if (sections.length === 0) {
+  if (orders.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView
           contentContainerStyle={styles.emptyContainer}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => {
-              setRefreshing(true);
-              fetchOrders();
-            }} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
         >
-          <Icon name="receipt" size={80} color={theme.colors.onSurfaceVariant} />
-          <Text variant="headlineSmall" style={styles.emptyTitle}>
-            No Orders Yet
-          </Text>
-          <Text variant="bodyMedium" style={styles.emptyText}>
+          <Icon name="receipt" size={80} color={theme.colors.gray[300]} />
+          <Text style={styles.emptyTitle}>No orders yet</Text>
+          <Text style={styles.emptyText}>
             Your orders will appear here once you place them
           </Text>
           <Button
             mode="contained"
-            onPress={() => {
-              // Navigate to scan screen
-            }}
+            onPress={() => {/* Navigate to scan */}}
             style={styles.scanButton}
           >
             Scan Table to Order
@@ -370,18 +291,18 @@ const OrdersScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <SectionList
         sections={sections}
-        renderItem={renderOrder}
-        renderSectionHeader={renderSectionHeader}
         keyExtractor={(item) => item.id}
+        renderItem={renderOrderItem}
+        renderSectionHeader={({ section: { title } }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+          </View>
+        )}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => {
-            setRefreshing(true);
-            fetchOrders();
-          }} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        stickySectionHeadersEnabled={false}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
     </SafeAreaView>
   );
@@ -390,7 +311,7 @@ const OrdersScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.gray[50],
   },
   loadingContainer: {
     flex: 1,
@@ -399,88 +320,8 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: spacing.md,
-    color: theme.colors.onSurfaceVariant,
-  },
-  listContent: {
-    paddingBottom: spacing.xl,
-  },
-  sectionHeader: {
-    fontWeight: '600',
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
-    backgroundColor: theme.colors.background,
-  },
-  orderCard: {
-    marginHorizontal: spacing.lg,
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.md,
-  },
-  orderInfo: {
-    flex: 1,
-  },
-  orderNumber: {
-    fontWeight: '600',
-    marginBottom: spacing.xs,
-  },
-  stallName: {
-    color: theme.colors.onSurfaceVariant,
-  },
-  statusChip: {
-    height: 28,
-  },
-  statusText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginBottom: spacing.md,
-  },
-  progressBar: {
-    height: 6,
-    borderRadius: 3,
-    marginBottom: spacing.xs,
-  },
-  estimatedTime: {
-    color: theme.colors.onSurfaceVariant,
-    fontStyle: 'italic',
-  },
-  divider: {
-    marginVertical: spacing.sm,
-  },
-  itemsContainer: {
-    marginBottom: spacing.md,
-  },
-  orderItem: {
-    marginBottom: spacing.xs,
-  },
-  specialInstructions: {
-    color: theme.colors.onSurfaceVariant,
-    fontStyle: 'italic',
-    marginLeft: spacing.md,
-  },
-  orderFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  footerLabel: {
-    color: theme.colors.onSurfaceVariant,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  collectButton: {
-    backgroundColor: theme.colors.success,
-  },
-  separator: {
-    height: spacing.md,
+    fontSize: 16,
+    color: theme.colors.gray[600],
   },
   emptyContainer: {
     flex: 1,
@@ -489,16 +330,113 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: theme.colors.gray[800],
     marginTop: spacing.lg,
-    marginBottom: spacing.sm,
   },
   emptyText: {
+    fontSize: 16,
+    color: theme.colors.gray[600],
     textAlign: 'center',
-    color: theme.colors.onSurfaceVariant,
+    marginTop: spacing.sm,
     marginBottom: spacing.xl,
   },
   scanButton: {
     paddingHorizontal: spacing.xl,
+  },
+  listContent: {
+    paddingBottom: spacing.xl,
+  },
+  sectionHeader: {
+    backgroundColor: theme.colors.gray[50],
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.sm,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.gray[800],
+  },
+  separator: {
+    height: spacing.md,
+  },
+  orderCard: {
+    marginHorizontal: spacing.lg,
+    backgroundColor: 'white',
+  },
+  orderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  orderNumber: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.gray[900],
+  },
+  stallName: {
+    fontSize: 14,
+    color: theme.colors.gray[700],
+    marginTop: 2,
+  },
+  tableNumber: {
+    fontSize: 12,
+    color: theme.colors.gray[500],
+    marginTop: 2,
+  },
+  orderHeaderRight: {
+    alignItems: 'flex-end',
+  },
+  statusChip: {
+    marginBottom: spacing.xs,
+  },
+  statusText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  totalAmount: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.gray[900],
+  },
+  divider: {
+    marginVertical: spacing.md,
+  },
+  itemsContainer: {
+    gap: spacing.sm,
+  },
+  orderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  itemQuantity: {
+    fontSize: 14,
+    color: theme.colors.gray[600],
+    width: 30,
+  },
+  itemName: {
+    flex: 1,
+    fontSize: 14,
+    color: theme.colors.gray[800],
+  },
+  itemPrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.gray[700],
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  statusMessage: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  collectButton: {
+    marginTop: spacing.sm,
   },
 });
 

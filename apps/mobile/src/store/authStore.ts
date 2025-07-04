@@ -1,3 +1,4 @@
+// apps/mobile/src/store/authStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -20,6 +21,8 @@ interface AuthState {
   setAuth: (token: string, user: User) => void;
   logout: () => void;
   checkAuth: () => Promise<void>;
+  isHydrated: boolean;
+  setHydrated: (hydrated: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,8 +32,13 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       userRole: null,
+      isHydrated: false,
+
+      setHydrated: (hydrated: boolean) => set({ isHydrated: hydrated }),
 
       setAuth: (token: string, user: User) => {
+        console.log('Setting auth with token:', token);
+        
         // Set token in API client
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
@@ -40,9 +48,26 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           userRole: user.userType
         });
+
+        // Force persist to storage
+        const state = get();
+        AsyncStorage.setItem('auth-storage', JSON.stringify({
+          state: {
+            token: state.token,
+            user: state.user,
+            isAuthenticated: state.isAuthenticated,
+            userRole: state.userRole
+          }
+        })).then(() => {
+          console.log('Auth data persisted to storage');
+        }).catch(error => {
+          console.error('Error persisting auth data:', error);
+        });
       },
 
       logout: async () => {
+        console.log('Logging out...');
+        
         // Remove token from API client
         delete api.defaults.headers.common['Authorization'];
         
@@ -99,6 +124,10 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: state.isAuthenticated,
         userRole: state.userRole
       }),
+      onRehydrateStorage: () => (state) => {
+        console.log('Auth store rehydrated:', state);
+        state?.setHydrated(true);
+      },
     }
   )
 );
