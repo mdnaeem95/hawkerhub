@@ -138,16 +138,31 @@ export const VendorOrdersScreen: React.FC = () => {
   // Update order status
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
+      console.log('Updating order status:', { orderId, status });
+      
       const response = await api.patch(`/orders/${orderId}/status`, { status });
       
+      console.log('Update response:', response.data);
+      
       if (response.data.success) {
-        Alert.alert('Success', 'Order status updated');
-        setStatusModalVisible(false);
-        setSelectedOrder(null);
+        Alert.alert('Success', 'Order status updated successfully!');
+        
+        // Update local state immediately
+        setOrders(prev => prev.map(order => 
+          order.id === orderId 
+            ? { ...order, status: status as Order['status'] }
+            : order
+        ));
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating order status:', error);
-      Alert.alert('Error', 'Failed to update order status');
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      
+      Alert.alert(
+        'Error', 
+        error.response?.data?.message || 'Failed to update order status'
+      );
     }
   };
 

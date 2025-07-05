@@ -1,3 +1,4 @@
+// apps/api/src/modules/orders/orders.controller.ts
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
@@ -18,14 +19,14 @@ const CreateOrderSchema = z.object({
 });
 
 export async function orderRoutes(fastify: FastifyInstance) {
-  // Create order with proper authentication
+  // Create order
   fastify.post('/orders', {
     preHandler: fastify.authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const body = request.body as any;
       
-      // Manual validation
+      // Validation
       if (!body.tableId || !body.stallId || !body.paymentMode || !body.items || !body.totalAmount) {
         return reply.code(400).send({
           success: false,
@@ -113,13 +114,13 @@ export async function orderRoutes(fastify: FastifyInstance) {
           stall: true,
           table: {
             include: {
-                hawker: true
+              hawker: true
             }
           }
         }
       });
 
-      // Try to emit socket event, but don't fail the request if it fails
+      // Try to emit socket event
       try {
         if (fastify.io) {
           emitNewOrder(fastify.io, order);
@@ -127,9 +128,6 @@ export async function orderRoutes(fastify: FastifyInstance) {
       } catch (socketError) {
         fastify.log.error('Socket emission error:', socketError);
       }
-
-      // TODO: Send notification to stall owner
-      // TODO: Generate payment QR if PayNow/GrabPay
 
       return reply.send({
         success: true,
@@ -155,21 +153,14 @@ export async function orderRoutes(fastify: FastifyInstance) {
     preHandler: fastify.authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      console.log('[Orders] Getting my orders');
-      console.log('[Orders] request.user:', request.user);
-      console.log('[Orders] Authorization header:', request.headers.authorization);
-      
       const customerId = request.user?.id;
 
       if (!customerId) {
-        console.error('[Orders] No customerId found in request.user');
         return reply.code(401).send({
           success: false,
           message: 'User not authenticated'
         });
       }
-
-      console.log('[Orders] Fetching orders for customer:', customerId);
 
       const orders = await prisma.order.findMany({
         where: { customerId },
@@ -185,8 +176,6 @@ export async function orderRoutes(fastify: FastifyInstance) {
         orderBy: { createdAt: 'desc' }
       });
 
-      console.log(`[Orders] Found ${orders.length} orders`);
-
       return reply.send({
         success: true,
         orders: orders.map(order => ({
@@ -200,7 +189,6 @@ export async function orderRoutes(fastify: FastifyInstance) {
       });
     } catch (error) {
       fastify.log.error(error);
-      console.error('[Orders] Error:', error);
       return reply.code(500).send({ 
         success: false,
         message: 'Failed to fetch orders' 
@@ -208,82 +196,121 @@ export async function orderRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // update order status
+  // Update order status
   fastify.patch('/orders/:orderId/status', {
-  preHandler: fastify.authenticate
+    preHandler: fastify.authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-  try {
+    try {
       const { orderId } = request.params as { orderId: string };
       const { status } = request.body as { status: string };
       const userId = request.user?.id;
 
+      console.log('[Orders] Update status request:', { orderId, status, userId });
+
       // Validate status
       const validStatuses = ['PENDING', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
       if (!status || !validStatuses.includes(status)) {
-      return reply.code(400).send({
+        return reply.code(400).send({
           success: false,
           message: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
-      });
+        });
       }
 
-      // Get the order
+      // Get the order first
       const order = await prisma.order.findUnique({
-      where: { id: orderId },
-      include: { 
+        where: { id: orderId },
+        include: { 
           stall: {
-          include: { owner: true }
+            include: { owner: true }
           }
-      }
+        }
       });
 
       if (!order) {
-      return reply.code(404).send({
+        return reply.code(404).send({
           success: false,
           message: 'Order not found'
-      });
+        });
       }
 
-      // Check permissions - customer can only mark as COMPLETED
+      // Check permissions
       const isCustomer = order.customerId === userId;
       const isStallOwner = order.stall.owner?.id === userId;
 
+      console.log('[Orders] Permission check:', { 
+        isCustomer, 
+        isStallOwner, 
+        customerId: order.customerId,
+        stallOwnerId: order.stall.owner?.id 
+      });
+
       if (!isCustomer && !isStallOwner) {
-      return reply.code(403).send({
+        return reply.code(403).send({
           success: false,
           message: 'Unauthorized to update this order'
-      });
+        });
       }
 
+      // Customers can only mark as COMPLETED
       if (isCustomer && status !== 'COMPLETED') {
-      return reply.code(403).send({
+        return reply.code(403).send({
           success: false,
           message: 'Customers can only mark orders as completed'
-      });
+        });
       }
 
       // Update order status
       const updatedOrder = await prisma.order.update({
-      where: { id: orderId },
-      data: { 
+        where: { id: orderId },
+        data: { 
           status: status as any,
           updatedAt: new Date()
-      },
+        },
+        include: {
+          items: {
+            include: {
+              menuItem: true
+            }
+          },
+          stall: true,
+          table: {
+            include: {
+              hawker: true
+            }
+          },
+          customer: true
+        }
       });
 
-      emitOrderUpdate(fastify.io, updatedOrder);
+      // Try to emit socket event
+      try {
+        if (fastify.io) {
+          emitOrderUpdate(fastify.io, updatedOrder);
+        }
+      } catch (socketError) {
+        console.error('[Orders] Socket emission error:', socketError);
+      }
 
-      // TODO: Send notifications
+      console.log('[Orders] Order status updated successfully');
 
       return reply.send({
-      success: true,
-      order: updatedOrder
+        success: true,
+        order: {
+          ...updatedOrder,
+          totalAmount: Number(updatedOrder.totalAmount),
+          items: updatedOrder.items.map(item => ({
+            ...item,
+            price: Number(item.price)
+          }))
+        }
       });
-  } catch (error) {
-      fastify.log.error(error);
+    } catch (error) {
+      fastify.log.error('[Orders] Status update error:', error);
+      console.error('[Orders] Full error:', error);
       return reply.code(500).send({
-      success: false,
-      message: 'Failed to update order status'
+        success: false,
+        message: 'Failed to update order status'
       });
-  }
+    }
   });
 }
