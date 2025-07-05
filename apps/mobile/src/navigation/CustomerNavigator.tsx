@@ -1,16 +1,18 @@
-// apps/mobile/src/navigation/CustomerNavigator.tsx
+// apps/mobile/src/navigation/CustomerNavigator.tsx (updated)
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { theme } from '@constants/theme';
+import { theme } from '@/constants/theme';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 
+// Import screens
 import { ScanTableScreen } from '@/screens/customer/ScanTableScreen';
 import OrdersScreen from '@/screens/customer/OrdersScreen';
-import ProfileScreen from '@/screens/customer/ProfileScreen';
-import { createStackNavigator } from '@react-navigation/stack';
 import { StallListScreen } from '@/screens/customer/StallListScreen';
-import CartScreen from '@/screens/customer/CartScreen';
+import { CartScreen } from '@/screens/customer/CartScreen';
 import { MenuScreen } from '@/screens/customer/MenuScreen';
+import ProfileScreen from '@/screens/customer/ProfileScreen';
 
 export type CustomerStackParamList = {
   ScanTable: undefined;
@@ -19,7 +21,13 @@ export type CustomerStackParamList = {
   Cart: undefined;
 };
 
-const Tab = createBottomTabNavigator();
+export type CustomerTabParamList = {
+  Order: undefined;
+  Orders: undefined;
+  Profile: undefined;
+};
+
+const Tab = createBottomTabNavigator<CustomerTabParamList>();
 const Stack = createStackNavigator<CustomerStackParamList>();
 
 // Stack navigator for the ordering flow
@@ -68,31 +76,81 @@ function OrderingStack() {
   );
 }
 
-export const CustomerNavigator: React.FC = () => {
+export function CustomerNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName: string = '';
+          let iconName: string;
 
           if (route.name === 'Order') {
-            iconName = 'qrcode-scan';
+            iconName = focused ? 'qrcode-scan' : 'qrcode';
           } else if (route.name === 'Orders') {
-            iconName = 'receipt';
+            iconName = focused ? 'receipt' : 'receipt';
           } else if (route.name === 'Profile') {
-            iconName = 'account';
+            iconName = focused ? 'account' : 'account-outline';
+          } else {
+            iconName = 'circle';
           }
 
           return <Icon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
+        tabBarInactiveTintColor: theme.colors.gray[500],
+        tabBarStyle: {
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+        },
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Order" component={OrderingStack} options={{ title: 'Order Food' }} />
-      <Tab.Screen name="Orders" component={OrdersScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen 
+        name="Order" 
+        component={OrderingStack}
+        options={({ route }) => ({
+          title: 'Order',
+          // Hide tab bar when in certain screens
+          tabBarStyle: ((route) => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? '';
+            if (['Menu', 'Cart'].includes(routeName)) {
+              return { display: 'none' };
+            }
+            return {
+              height: 60,
+              paddingBottom: 8,
+              paddingTop: 8,
+            };
+          })(route),
+        })}
+      />
+      <Tab.Screen 
+        name="Orders" 
+        component={OrdersScreen}
+        options={{ 
+          title: 'My Orders',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: theme.colors.primary,
+          },
+          headerTintColor: '#fff',
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{ 
+          title: 'Profile',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: theme.colors.primary,
+          },
+          headerTintColor: '#fff',
+        }}
+      />
     </Tab.Navigator>
   );
-};
+}

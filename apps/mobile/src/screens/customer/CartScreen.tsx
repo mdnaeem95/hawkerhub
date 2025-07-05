@@ -19,14 +19,13 @@ import {
   TextInput,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { CommonActions, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { useCartStore, CartItem } from '@/store/cartStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
 import { CustomerStackParamList } from '@/navigation/CustomerNavigator';
 
 type CartScreenNavigationProp = StackNavigationProp<CustomerStackParamList, 'Cart'>;
@@ -39,7 +38,6 @@ interface SessionInfo {
 
 export const CartScreen: React.FC = () => {
   const navigation = useNavigation<CartScreenNavigationProp>();
-  const { user } = useAuthStore();
   
   const items = useCartStore(state => state.items);
   const updateQuantity = useCartStore(state => state.updateQuantity);
@@ -91,7 +89,7 @@ export const CartScreen: React.FC = () => {
       
       // Create order
       const orderData = {
-        tableId: session.tableNumber, // This might need to be the actual table ID from DB
+        tableId: session.tableNumber,
         stallId,
         paymentMode: selectedPayment,
         items: stallItems.map(item => ({
@@ -102,44 +100,67 @@ export const CartScreen: React.FC = () => {
         totalAmount: stallTotal,
       };
       
+      console.log('Sending order data:', orderData);
+      
       const response = await api.post('/orders', orderData);
       
       if (response.data.success) {
-        // Show success first, then handle navigation
+        // Clear the cart items for this stall
+        const clearStallItems = useCartStore.getState().clearStallItems;
+        clearStallItems(stallId);
+        
+        // Close payment modal
+        setShowPaymentModal(false);
+        
+        // Show success message
         Alert.alert(
-          'Order Placed!',
-          `Your order #${response.data.order.orderNumber} has been sent to ${stallItems[0].stallName}`,
+          '✅ Order Placed Successfully!',
+          `Order #${response.data.order.orderNumber} has been sent to ${stallItems[0].stallName}`,
           [
             { 
-              text: 'View Orders', 
+              text: 'View Order', 
               onPress: () => {
-                // Clear the cart items for this stall
-                stallItems.forEach(item => removeItem(item.id));
-                // Navigate back to stall list
-                navigation.goBack();
-                // TODO: Add a way to navigate to Orders tab
-              }
-            },
-            { 
-              text: 'Continue Shopping',
-              onPress: () => {
-                // Clear the cart items for this stall
-                stallItems.forEach(item => removeItem(item.id));
+                // Navigate to parent tab navigator first, then to Orders tab
+                navigation.getParent()?.navigate('Orders');
               }
             }
-          ]
+          ],
+          { cancelable: false }
         );
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
-      Alert.alert(
-        'Order Failed',
-        error.response?.data?.message || 'Failed to place order. Please try again.',
-        [{ text: 'OK' }]
-      );
+      console.error('Error response:', error.response?.data);
+      
+      // Check if order was actually created despite the error
+      if (error.response?.status === 500 && error.response?.data?.message?.includes('notification')) {
+        // Order was created but notification failed
+        const clearStallItems = useCartStore.getState().clearStallItems;
+        clearStallItems(stallId);
+        setShowPaymentModal(false);
+        
+        Alert.alert(
+          '✅ Order Placed',
+          'Your order has been placed successfully!',
+          [
+            { 
+              text: 'View Orders', 
+              onPress: () => {
+                navigation.getParent()?.navigate('Orders');
+              }
+            }
+          ]
+        );
+      } else {
+        // Actual order creation failure
+        Alert.alert(
+          'Order Failed',
+          error.response?.data?.message || 'Failed to place order. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setLoading(false);
-      setShowPaymentModal(false);
     }
   };
 

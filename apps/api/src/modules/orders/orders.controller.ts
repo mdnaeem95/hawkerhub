@@ -119,7 +119,14 @@ export async function orderRoutes(fastify: FastifyInstance) {
         }
       });
 
-      emitNewOrder(fastify.io, order);
+      // Try to emit socket event, but don't fail the request if it fails
+      try {
+        if (fastify.io) {
+          emitNewOrder(fastify.io, order);
+        }
+      } catch (socketError) {
+        fastify.log.error('Socket emission error:', socketError);
+      }
 
       // TODO: Send notification to stall owner
       // TODO: Generate payment QR if PayNow/GrabPay
@@ -202,81 +209,81 @@ export async function orderRoutes(fastify: FastifyInstance) {
   });
 
   // update order status
-    fastify.patch('/orders/:orderId/status', {
-    preHandler: fastify.authenticate
-    }, async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-        const { orderId } = request.params as { orderId: string };
-        const { status } = request.body as { status: string };
-        const userId = request.user?.id;
+  fastify.patch('/orders/:orderId/status', {
+  preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+  try {
+      const { orderId } = request.params as { orderId: string };
+      const { status } = request.body as { status: string };
+      const userId = request.user?.id;
 
-        // Validate status
-        const validStatuses = ['PENDING', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
-        if (!status || !validStatuses.includes(status)) {
-        return reply.code(400).send({
-            success: false,
-            message: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
-        });
-        }
+      // Validate status
+      const validStatuses = ['PENDING', 'PREPARING', 'READY', 'COMPLETED', 'CANCELLED'];
+      if (!status || !validStatuses.includes(status)) {
+      return reply.code(400).send({
+          success: false,
+          message: 'Invalid status. Must be one of: ' + validStatuses.join(', ')
+      });
+      }
 
-        // Get the order
-        const order = await prisma.order.findUnique({
-        where: { id: orderId },
-        include: { 
-            stall: {
-            include: { owner: true }
-            }
-        }
-        });
+      // Get the order
+      const order = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: { 
+          stall: {
+          include: { owner: true }
+          }
+      }
+      });
 
-        if (!order) {
-        return reply.code(404).send({
-            success: false,
-            message: 'Order not found'
-        });
-        }
+      if (!order) {
+      return reply.code(404).send({
+          success: false,
+          message: 'Order not found'
+      });
+      }
 
-        // Check permissions - customer can only mark as COMPLETED
-        const isCustomer = order.customerId === userId;
-        const isStallOwner = order.stall.owner?.id === userId;
+      // Check permissions - customer can only mark as COMPLETED
+      const isCustomer = order.customerId === userId;
+      const isStallOwner = order.stall.owner?.id === userId;
 
-        if (!isCustomer && !isStallOwner) {
-        return reply.code(403).send({
-            success: false,
-            message: 'Unauthorized to update this order'
-        });
-        }
+      if (!isCustomer && !isStallOwner) {
+      return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized to update this order'
+      });
+      }
 
-        if (isCustomer && status !== 'COMPLETED') {
-        return reply.code(403).send({
-            success: false,
-            message: 'Customers can only mark orders as completed'
-        });
-        }
+      if (isCustomer && status !== 'COMPLETED') {
+      return reply.code(403).send({
+          success: false,
+          message: 'Customers can only mark orders as completed'
+      });
+      }
 
-        // Update order status
-        const updatedOrder = await prisma.order.update({
-        where: { id: orderId },
-        data: { 
-            status: status as any,
-            updatedAt: new Date()
-        },
-        });
+      // Update order status
+      const updatedOrder = await prisma.order.update({
+      where: { id: orderId },
+      data: { 
+          status: status as any,
+          updatedAt: new Date()
+      },
+      });
 
-        emitOrderUpdate(fastify.io, updatedOrder);
+      emitOrderUpdate(fastify.io, updatedOrder);
 
-        // TODO: Send notifications
+      // TODO: Send notifications
 
-        return reply.send({
-        success: true,
-        order: updatedOrder
-        });
-    } catch (error) {
-        fastify.log.error(error);
-        return reply.code(500).send({
-        success: false,
-        message: 'Failed to update order status'
-        });
-    }
-    });
+      return reply.send({
+      success: true,
+      order: updatedOrder
+      });
+  } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({
+      success: false,
+      message: 'Failed to update order status'
+      });
+  }
+  });
 }
