@@ -13,13 +13,15 @@ import {
   Surface,
   IconButton,
   useTheme,
+  ActivityIndicator,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
+import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { VendorTabParamList } from '@/navigation/VendorNavigator';
 
 type DashboardNavigationProp = BottomTabNavigationProp<VendorTabParamList, 'Dashboard'>;
@@ -50,24 +52,24 @@ export const DashboardScreen: React.FC = () => {
   const fetchDashboardStats = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual vendor stats endpoint
-      // const response = await api.get('/vendor/dashboard-stats');
+      const response = await api.get('/vendor/dashboard-stats');
       
-      // Mock data for now
-      setStats({
-        todayOrders: 45,
-        todayRevenue: 523.50,
-        pendingOrders: 3,
-        completedOrders: 42,
-        averageOrderValue: 11.63,
-        popularItems: [
-          { name: 'Chicken Rice', count: 12 },
-          { name: 'Iced Kopi', count: 8 },
-          { name: 'Char Kway Teow', count: 6 },
-        ]
-      });
-    } catch (error) {
+      if (response.data.success) {
+        setStats(response.data.stats);
+      }
+    } catch (error: any) {
       console.error('Error fetching dashboard stats:', error);
+      console.error('Error details:', error.response?.data);
+      
+      // Show empty stats if error
+      setStats({
+        todayOrders: 0,
+        todayRevenue: 0,
+        pendingOrders: 0,
+        completedOrders: 0,
+        averageOrderValue: 0,
+        popularItems: []
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -90,6 +92,17 @@ export const DashboardScreen: React.FC = () => {
       <Text style={styles.quickActionLabel}>{label}</Text>
     </Surface>
   );
+
+  if (loading && !stats) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={styles.loadingText}>Loading dashboard...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -175,7 +188,7 @@ export const DashboardScreen: React.FC = () => {
               <Button
                 mode="text"
                 compact
-                onPress={() => navigation.navigate('Analytics' as any)}
+                onPress={() => navigation.navigate('Analytics')}
               >
                 View All
               </Button>
@@ -196,7 +209,7 @@ export const DashboardScreen: React.FC = () => {
               <Icon name="alert-circle" size={24} color={theme.colors.warning} />
               <View style={styles.alertText}>
                 <Text style={styles.alertTitle}>
-                  {stats?.pendingOrders || 0} pending orders
+                  {stats?.pendingOrders} pending orders
                 </Text>
                 <Text style={styles.alertSubtitle}>
                   Tap to view and update order status
@@ -205,7 +218,7 @@ export const DashboardScreen: React.FC = () => {
               <IconButton
                 icon="chevron-right"
                 size={20}
-                onPress={() => navigation.navigate('Orders' as any)}
+                onPress={() => navigation.navigate('Orders')}
               />
             </Card.Content>
           </Card>
@@ -219,6 +232,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.gray[50],
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    fontSize: 16,
+    color: theme.colors.gray[600],
   },
   header: {
     flexDirection: 'row',

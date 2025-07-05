@@ -101,14 +101,23 @@ export const VendorOrdersScreen: React.FC = () => {
     try {
       if (showLoader) setLoading(true);
       
-      // TODO: Replace with actual vendor orders endpoint
       const response = await api.get('/vendor/orders');
       
       if (response.data.success) {
         setOrders(response.data.orders);
+        console.log(`Fetched ${response.data.orders.length} vendor orders`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching vendor orders:', error);
+      console.error('Error details:', error.response?.data);
+      
+      if (error.response?.status === 403) {
+        Alert.alert(
+          'Access Denied',
+          'You need vendor access to view orders',
+          [{ text: 'OK' }]
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

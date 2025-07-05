@@ -27,7 +27,7 @@ class SocketService {
       console.log('[Socket] Disconnected from server');
     });
 
-    this.socket.on('error', (error: any) => {
+    this.socket.on('error', (error) => {
       console.error('[Socket] Error:', error);
     });
 
@@ -49,9 +49,30 @@ class SocketService {
 
     if (userRole === 'customer') {
       this.socket.emit('join:customer', user.id);
+      console.log(`[Socket] Joined customer room: ${user.id}`);
     } else if (userRole === 'vendor') {
-      // Assuming vendor has stallId
-      // this.socket.emit('join:vendor', user.stallId);
+      // For vendor, we need to get their stall ID
+      // This assumes the vendor user object has a stallId property
+      // You might need to fetch this from the API or store it in auth
+      this.fetchVendorStallId().then(stallId => {
+        if (stallId && this.socket) {
+          this.socket.emit('join:vendor', stallId);
+          console.log(`[Socket] Joined vendor stall room: ${stallId}`);
+        }
+      });
+    }
+  }
+
+  private async fetchVendorStallId(): Promise<string | null> {
+    try {
+      // You might want to store this in the auth store or fetch it
+      // For now, we'll make an API call to get vendor details
+      const response = await fetch('/api/vendor/profile');
+      const data = await response.json();
+      return data.stallId || null;
+    } catch (error) {
+      console.error('[Socket] Error fetching vendor stall ID:', error);
+      return null;
     }
   }
 
@@ -64,17 +85,17 @@ class SocketService {
     if (!this.socket) return;
 
     // Order events
-    this.socket.on('order:created', (order: any) => {
+    this.socket.on('order:created', (order) => {
       console.log('[Socket] New order created:', order);
       this.emit('order:created', order);
     });
 
-    this.socket.on('order:updated', (order: any) => {
+    this.socket.on('order:updated', (order) => {
       console.log('[Socket] Order updated:', order);
       this.emit('order:updated', order);
     });
 
-    this.socket.on('order:new', (order: any) => {
+    this.socket.on('order:new', (order) => {
       console.log('[Socket] New order for vendor:', order);
       this.emit('order:new', order);
     });
