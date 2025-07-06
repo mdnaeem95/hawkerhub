@@ -20,6 +20,27 @@ const CreateOrderSchema = z.object({
   totalAmount: z.number().positive(),
 });
 
+// Helper functions
+function calculateEstimatedReadyTime(order: any): Date {
+  const baseTime = new Date();
+  const itemCount = order.items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+  
+  // Base preparation time: 10 minutes + 2 minutes per item
+  const prepMinutes = 10 + (itemCount * 2);
+  
+  baseTime.setMinutes(baseTime.getMinutes() + prepMinutes);
+  return baseTime;
+}
+
+function generateCollectionCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
 export async function orderRoutes(fastify: FastifyInstance) {
   // Create order
   fastify.post('/orders', {
@@ -78,6 +99,9 @@ export async function orderRoutes(fastify: FastifyInstance) {
         });
       }
 
+      // Generate collection code
+      const collectionCode = generateCollectionCode();
+
       // Create order with items
       const order = await prisma.order.create({
         data: {
@@ -122,10 +146,25 @@ export async function orderRoutes(fastify: FastifyInstance) {
         }
       });
 
+      // Calculate estimated ready time
+      const estimatedReadyTime = calculateEstimatedReadyTime(order);
+
+      // Enrich order object for response
+      const enrichedOrder = {
+        ...order,
+        estimatedReadyTime,
+        collectionCode,
+        hawker: order.table.hawker,
+        stall: {
+          ...order.stall,
+          location: `Stall ${order.stall.id.slice(-2)}` // Mock location - in production, this would come from the database
+        }
+      };
+
       // Try to emit socket event
       try {
         if (fastify.io) {
-          emitNewOrder(fastify.io, order);
+          emitNewOrder(fastify.io, enrichedOrder);
         }
       } catch (socketError) {
         fastify.log.error('Socket emission error:', socketError);
@@ -141,10 +180,12 @@ export async function orderRoutes(fastify: FastifyInstance) {
       return reply.send({
         success: true,
         order: {
-          id: order.id,
-          orderNumber: order.orderNumber,
-          status: order.status,
-          totalAmount: Number(order.totalAmount),
+          id: enrichedOrder.id,
+          orderNumber: enrichedOrder.orderNumber,
+          status: enrichedOrder.status,
+          totalAmount: Number(enrichedOrder.totalAmount),
+          estimatedReadyTime: enrichedOrder.estimatedReadyTime,
+          collectionCode: enrichedOrder.collectionCode,
         },
         message: 'Order placed successfully'
       });
@@ -180,21 +221,41 @@ export async function orderRoutes(fastify: FastifyInstance) {
             }
           },
           stall: true,
-          table: true
+          table: {
+            include: {
+              hawker: true  // Include hawker info
+            }
+          }
         },
         orderBy: { createdAt: 'desc' }
       });
 
-      return reply.send({
-        success: true,
-        orders: orders.map(order => ({
+      // Enrich orders with additional data
+      const enrichedOrders = orders.map(order => {
+        const estimatedReadyTime = order.status === 'PENDING' || order.status === 'PREPARING' 
+          ? calculateEstimatedReadyTime(order) 
+          : null;
+
+        return {
           ...order,
           totalAmount: Number(order.totalAmount),
+          estimatedReadyTime,
+          collectionCode: generateCollectionCode(), // In production, this should be stored in DB
+          hawker: order.table.hawker,
+          stall: {
+            ...order.stall,
+            location: `Stall ${order.stall.id.slice(-2)}` // Mock location
+          },
           items: order.items.map(item => ({
             ...item,
             price: Number(item.price)
           }))
-        }))
+        };
+      });
+
+      return reply.send({
+        success: true,
+        orders: enrichedOrders
       });
     } catch (error) {
       fastify.log.error(error);
@@ -231,6 +292,11 @@ export async function orderRoutes(fastify: FastifyInstance) {
         include: { 
           stall: {
             include: { owner: true }
+          },
+          table: {
+            include: {
+              hawker: true
+            }
           }
         }
       });
@@ -291,10 +357,32 @@ export async function orderRoutes(fastify: FastifyInstance) {
         }
       });
 
+      // Calculate new estimated time if needed
+      const estimatedReadyTime = status === 'PENDING' || status === 'PREPARING' 
+        ? calculateEstimatedReadyTime(updatedOrder) 
+        : null;
+
+      // Enrich the updated order
+      const enrichedOrder = {
+        ...updatedOrder,
+        totalAmount: Number(updatedOrder.totalAmount),
+        estimatedReadyTime,
+        collectionCode: generateCollectionCode(), // In production, this should be persistent
+        hawker: updatedOrder.table.hawker,
+        stall: {
+          ...updatedOrder.stall,
+          location: `Stall ${updatedOrder.stall.id.slice(-2)}`
+        },
+        items: updatedOrder.items.map(item => ({
+          ...item,
+          price: Number(item.price)
+        }))
+      };
+
       // Try to emit socket event
       try {
         if (fastify.io) {
-          emitOrderUpdate(fastify.io, updatedOrder);
+          emitOrderUpdate(fastify.io, enrichedOrder);
         }
       } catch (socketError) {
         console.error('[Orders] Socket emission error:', socketError);
@@ -311,14 +399,7 @@ export async function orderRoutes(fastify: FastifyInstance) {
 
       return reply.send({
         success: true,
-        order: {
-          ...updatedOrder,
-          totalAmount: Number(updatedOrder.totalAmount),
-          items: updatedOrder.items.map(item => ({
-            ...item,
-            price: Number(item.price)
-          }))
-        }
+        order: enrichedOrder
       });
     } catch (error) {
       fastify.log.error('[Orders] Status update error:', error);
@@ -326,6 +407,87 @@ export async function orderRoutes(fastify: FastifyInstance) {
       return reply.code(500).send({
         success: false,
         message: 'Failed to update order status'
+      });
+    }
+  });
+
+  // Get order details
+  fastify.get('/orders/:orderId', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const { orderId } = request.params as { orderId: string };
+      const userId = request.user?.id;
+
+      const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+          items: {
+            include: {
+              menuItem: true
+            }
+          },
+          stall: {
+            include: { owner: true }
+          },
+          table: {
+            include: {
+              hawker: true
+            }
+          },
+          customer: true
+        }
+      });
+
+      if (!order) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Order not found'
+        });
+      }
+
+      // Check permissions
+      const isCustomer = order.customerId === userId;
+      const isStallOwner = order.stall.owner?.id === userId;
+
+      if (!isCustomer && !isStallOwner) {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized to view this order'
+        });
+      }
+
+      // Calculate estimated ready time if applicable
+      const estimatedReadyTime = order.status === 'PENDING' || order.status === 'PREPARING' 
+        ? calculateEstimatedReadyTime(order) 
+        : null;
+
+      // Enrich order
+      const enrichedOrder = {
+        ...order,
+        totalAmount: Number(order.totalAmount),
+        estimatedReadyTime,
+        collectionCode: generateCollectionCode(),
+        hawker: order.table.hawker,
+        stall: {
+          ...order.stall,
+          location: `Stall ${order.stall.id.slice(-2)}`
+        },
+        items: order.items.map(item => ({
+          ...item,
+          price: Number(item.price)
+        }))
+      };
+
+      return reply.send({
+        success: true,
+        order: enrichedOrder
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({
+        success: false,
+        message: 'Failed to fetch order details'
       });
     }
   });
