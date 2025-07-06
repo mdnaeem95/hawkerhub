@@ -8,6 +8,7 @@ export const theme: MD3Theme & {
     success: string;
     info: string;
     warning: string;
+    accent: string;
   };
   borderRadius: {
     none: number;
@@ -29,6 +30,7 @@ export const theme: MD3Theme & {
     success: '#10B981',
     info: '#3B82F6',    // Blue-500
     warning: '#F97316',
+    accent: '#0D9488',  
     background: '#FAFAFA',
     surface: '#FFFFFF',
     surfaceVariant: '#F3F4F6',

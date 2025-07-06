@@ -14,6 +14,7 @@
     "@react-navigation/bottom-tabs": "^7.0.13",
     "@react-navigation/native": "^7.0.13",
     "@react-navigation/stack": "^7.0.13",
+    "@shopify/react-native-skia": "^2.1.1",
     "@tanstack/react-query": "^5.62.11",
     "@types/react-native": "^0.73.0",
     "@types/react-native-vector-icons": "^6.4.18",
@@ -39,6 +40,7 @@
     "react-native-screens": "~4.11.1",
     "react-native-vector-icons": "^10.2.0",
     "socket.io-client": "^4.8.1",
+    "victory-native": "^41.17.4",
     "zustand": "^5.0.2"
   },
   "devDependencies": {
