@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
   Alert,
 } from 'react-native';
 import {
@@ -14,19 +13,13 @@ import {
   Chip,
   Button,
   ActivityIndicator,
-  FAB,
-  Portal,
-  Modal,
-  RadioButton,
   Divider,
-  IconButton,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
 import { useSocket, useSocketConnection } from '@/hooks/useSocket';
 
 interface OrderItem {
@@ -62,14 +55,10 @@ interface Order {
 }
 
 export const VendorOrdersScreen: React.FC = () => {
-  const { user } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [statusModalVisible, setStatusModalVisible] = useState(false);
-  const [newStatus, setNewStatus] = useState<string>('');
 
   // Initialize socket connection
   useSocketConnection();

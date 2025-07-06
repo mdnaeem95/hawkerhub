@@ -5,6 +5,156 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 export async function vendorRoutes(fastify: FastifyInstance) {
+  // Get vendor profile
+  fastify.get('/vendor/profile', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const userType = request.user?.userType;
+
+      if (!vendorId || userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { 
+          stall: {
+            include: {
+              hawker: true
+            }
+          } 
+        }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      return reply.send({
+        success: true,
+        vendor: {
+          id: vendor.id,
+          name: vendor.name,
+          email: vendor.email,
+          phoneNumber: vendor.phoneNumber
+        },
+        stall: {
+          id: vendor.stall.id,
+          name: vendor.stall.name,
+          phoneNumber: vendor.stall.phoneNumber,
+          isActive: vendor.stall.isActive,
+          hawkerName: vendor.stall.hawker.name
+        }
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to fetch vendor profile' 
+      });
+    }
+  });
+
+  // Update vendor profile
+  fastify.patch('/vendor/profile', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { phoneNumber } = request.body as { phoneNumber?: string };
+
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Update vendor phone number
+      if (phoneNumber) {
+        await prisma.stallOwner.update({
+          where: { id: vendorId },
+          data: { phoneNumber }
+        });
+
+        // Also update stall phone number
+        const vendor = await prisma.stallOwner.findUnique({
+          where: { id: vendorId }
+        });
+
+        if (vendor) {
+          await prisma.stall.update({
+            where: { id: vendor.stallId },
+            data: { phoneNumber }
+          });
+        }
+      }
+
+      return reply.send({
+        success: true,
+        message: 'Profile updated successfully'
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to update profile' 
+      });
+    }
+  });
+
+  // Toggle stall status
+  fastify.patch('/vendor/stall/status', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { isActive } = request.body as { isActive: boolean };
+
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId }
+      });
+
+      if (!vendor) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor not found'
+        });
+      }
+
+      const updatedStall = await prisma.stall.update({
+        where: { id: vendor.stallId },
+        data: { isActive }
+      });
+
+      return reply.send({
+        success: true,
+        stall: updatedStall
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to update stall status' 
+      });
+    }
+  });
+
   // Get vendor's orders
   fastify.get('/vendor/orders', {
     preHandler: fastify.authenticate
