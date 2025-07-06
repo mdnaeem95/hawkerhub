@@ -301,6 +301,320 @@ export async function vendorRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  // Get vendor's menu items
+  fastify.get('/vendor/menu', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Get vendor's stall
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Get menu items for the vendor's stall
+      const menuItems = await prisma.menuItem.findMany({
+        where: { stallId: vendor.stall.id },
+        orderBy: [
+          { category: 'asc' },
+          { name: 'asc' }
+        ]
+      });
+
+      return reply.send({
+        success: true,
+        menu: menuItems.map(item => ({
+          ...item,
+          price: Number(item.price)
+        }))
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to fetch menu items' 
+      });
+    }
+  });
+
+  // Add new menu item
+  fastify.post('/vendor/menu', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { name, nameZh, nameMy, nameTa, description, price, category, imageUrl } = request.body as any;
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Get vendor's stall
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Create menu item
+      const menuItem = await prisma.menuItem.create({
+        data: {
+          stallId: vendor.stall.id,
+          name,
+          nameZh,
+          nameMy,
+          nameTa,
+          description,
+          price,
+          category,
+          imageUrl,
+          isAvailable: true
+        }
+      });
+
+      return reply.send({
+        success: true,
+        menuItem: {
+          ...menuItem,
+          price: Number(menuItem.price)
+        }
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to create menu item' 
+      });
+    }
+  });
+
+  // Update menu item
+  fastify.put('/vendor/menu/:itemId', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { itemId } = request.params as { itemId: string };
+      const { name, nameZh, nameMy, nameTa, description, price, category, imageUrl } = request.body as any;
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Get vendor's stall
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Verify menu item belongs to vendor's stall
+      const existingItem = await prisma.menuItem.findFirst({
+        where: {
+          id: itemId,
+          stallId: vendor.stall.id
+        }
+      });
+
+      if (!existingItem) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Menu item not found'
+        });
+      }
+
+      // Update menu item
+      const updatedItem = await prisma.menuItem.update({
+        where: { id: itemId },
+        data: {
+          name,
+          nameZh,
+          nameMy,
+          nameTa,
+          description,
+          price,
+          category,
+          imageUrl
+        }
+      });
+
+      return reply.send({
+        success: true,
+        menuItem: {
+          ...updatedItem,
+          price: Number(updatedItem.price)
+        }
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to update menu item' 
+      });
+    }
+  });
+
+  // Delete menu item
+  fastify.delete('/vendor/menu/:itemId', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { itemId } = request.params as { itemId: string };
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Get vendor's stall
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Verify menu item belongs to vendor's stall
+      const existingItem = await prisma.menuItem.findFirst({
+        where: {
+          id: itemId,
+          stallId: vendor.stall.id
+        }
+      });
+
+      if (!existingItem) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Menu item not found'
+        });
+      }
+
+      // Delete menu item
+      await prisma.menuItem.delete({
+        where: { id: itemId }
+      });
+
+      return reply.send({
+        success: true,
+        message: 'Menu item deleted successfully'
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to delete menu item' 
+      });
+    }
+  });
+
+  // Toggle menu item availability
+  fastify.patch('/vendor/menu/:itemId/availability', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      const { itemId } = request.params as { itemId: string };
+      const { isAvailable } = request.body as { isAvailable: boolean };
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      // Get vendor's stall
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Verify menu item belongs to vendor's stall
+      const existingItem = await prisma.menuItem.findFirst({
+        where: {
+          id: itemId,
+          stallId: vendor.stall.id
+        }
+      });
+
+      if (!existingItem) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Menu item not found'
+        });
+      }
+
+      // Update availability
+      const updatedItem = await prisma.menuItem.update({
+        where: { id: itemId },
+        data: { isAvailable }
+      });
+
+      return reply.send({
+        success: true,
+        menuItem: {
+          ...updatedItem,
+          price: Number(updatedItem.price)
+        }
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({ 
+        success: false,
+        message: 'Failed to update item availability' 
+      });
+    }
+  });
 }
 
 function getPopularItems(orders: any[]) {

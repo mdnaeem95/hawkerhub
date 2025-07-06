@@ -26,6 +26,7 @@ import { useAuthStore } from '@/store/authStore';
 import { api } from '@/services/api';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { VendorStackParamList } from '@/navigation/VendorNavigator';
+import { pushNotificationService } from '@/services/pushNotification.service';
 
 type VendorProfileScreenNavigationProp = StackNavigationProp<VendorStackParamList, 'EditMenuItem'>;
 
@@ -51,6 +52,7 @@ export const ProfileScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editedPhone, setEditedPhone] = useState('');
+  const [sendingTestNotification, setSendingTestNotification] = useState(false);
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences>({
     orderUpdates: true,
     promotions: true,
@@ -143,10 +145,40 @@ export const ProfileScreen: React.FC = () => {
 
   const testNotification = async () => {
     try {
+      setSendingTestNotification(true);
+      
+      // First ensure we have push permissions
+      const token = await pushNotificationService.registerForPushNotifications();
+      
+      if (!token) {
+        Alert.alert(
+          'Notifications Disabled',
+          'Please enable notifications in your device settings to receive test notifications.'
+        );
+        return;
+      }
+      
+      // Send test notification
       await api.post('/notifications/test');
-      Alert.alert('Test Sent', 'Check your notifications!');
-    } catch (error) {
-      Alert.alert('Error', 'Failed to send test notification');
+      
+      Alert.alert(
+        'Test Sent', 
+        'Check your notifications! If you don\'t see it, make sure notifications are enabled for HawkerHub in your device settings.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error sending test notification:', error);
+      
+      let errorMessage = 'Failed to send test notification';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setSendingTestNotification(false);
     }
   };
 

@@ -11,6 +11,7 @@ import { hawkerRoutes } from './modules/hawkers/hawker.controller';
 import { orderRoutes } from './modules/orders/orders.controller';
 import { vendorRoutes } from './modules/vendor/vendor.controller';
 import { paymentRoutes } from './modules/payments/payment.controller';
+import { notificationRoutes } from './modules/notifications/notification.controller'; // ADD THIS
 import { AuthService } from './modules/auth/auth.service';
 
 // Load environment variables
@@ -129,6 +130,7 @@ async function start() {
       await fastify.register(orderRoutes, { prefix: '/api' });
       await fastify.register(vendorRoutes, { prefix: '/api' });
       await fastify.register(paymentRoutes, { prefix: '/api' });
+      await fastify.register(notificationRoutes, { prefix: '/api' }); // ADD THIS
     });
     
     // Start server
