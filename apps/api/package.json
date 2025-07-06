@@ -23,6 +23,7 @@
     "fastify": "^4.29.1",
     "fastify-socket.io": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "qrcode": "^1.5.4",
     "redis": "^4.7.1",
     "socket.io": "^4.8.1",
     "twilio": "^4.23.0",
@@ -32,6 +33,7 @@
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.4",
+    "@types/qrcode": "^1.5.5",
     "nodemon": "^3.1.10",
     "prisma": "^5.22.0",
     "tsx": "^4.20.3",

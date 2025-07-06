@@ -12,6 +12,7 @@ import OrdersScreen from '@/screens/customer/OrdersScreen';
 import { StallListScreen } from '@/screens/customer/StallListScreen';
 import { CartScreen } from '@/screens/customer/CartScreen';
 import { MenuScreen } from '@/screens/customer/MenuScreen';
+import { PaymentScreen } from '@/screens/customer/PaymentScreen';
 import ProfileScreen from '@/screens/customer/ProfileScreen';
 
 export type CustomerStackParamList = {
@@ -19,6 +20,13 @@ export type CustomerStackParamList = {
   StallList: { hawkerId: string; tableNumber: string };
   Menu: { stallId: string; stallName: string };
   Cart: undefined;
+  Payment: {
+    orderId: string;
+    orderNumber: string;
+    amount: number;
+    paymentMode: string;
+    stallName: string;
+  };
 };
 
 export type CustomerTabParamList = {
@@ -66,6 +74,17 @@ function OrderingStack() {
         component={CartScreen}
         options={{ 
           title: 'Your Cart',
+          headerStyle: {
+            backgroundColor: theme.colors.primary,
+          },
+          headerTintColor: '#fff',
+        }}
+      />
+      <Stack.Screen 
+        name="Payment" 
+        component={PaymentScreen}
+        options={{ 
+          title: 'Payment',
           headerStyle: {
             backgroundColor: theme.colors.primary,
           },

@@ -112,21 +112,31 @@ export const CartScreen: React.FC = () => {
         // Close payment modal
         setShowPaymentModal(false);
         
-        // Show success message
-        Alert.alert(
-          '✅ Order Placed Successfully!',
-          `Order #${response.data.order.orderNumber} has been sent to ${stallItems[0].stallName}`,
-          [
-            { 
-              text: 'View Order', 
-              onPress: () => {
-                // Navigate to parent tab navigator first, then to Orders tab
-                navigation.getParent()?.navigate('Orders');
+        // Navigate to payment screen for non-cash payments
+        if (selectedPayment !== 'CASH') {
+          navigation.navigate('Payment', {
+            orderId: response.data.order.id,
+            orderNumber: response.data.order.orderNumber,
+            amount: stallTotal,
+            paymentMode: selectedPayment,
+            stallName: stallItems[0].stallName
+          });
+        } else {
+          // For cash payments, show success and go to orders
+          Alert.alert(
+            '✅ Order Placed Successfully!',
+            `Order #${response.data.order.orderNumber} has been sent to ${stallItems[0].stallName}. Please pay in cash when collecting.`,
+            [
+              { 
+                text: 'View Order', 
+                onPress: () => {
+                  navigation.getParent()?.navigate('Orders');
+                }
               }
-            }
-          ],
-          { cancelable: false }
-        );
+            ],
+            { cancelable: false }
+          );
+        }
       }
     } catch (error: any) {
       console.error('Checkout error:', error);
