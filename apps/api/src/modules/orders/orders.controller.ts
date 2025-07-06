@@ -3,8 +3,10 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { emitNewOrder, emitOrderUpdate } from '../../plugins/socket.plugin';
+import { NotificationService } from '../notifications/notification.service';
 
 const prisma = new PrismaClient();
+const notificationService = new NotificationService();
 
 const CreateOrderSchema = z.object({
   tableId: z.string(),
@@ -127,6 +129,13 @@ export async function orderRoutes(fastify: FastifyInstance) {
         }
       } catch (socketError) {
         fastify.log.error('Socket emission error:', socketError);
+      }
+
+      // Send push notification to vendor
+      try {
+        await notificationService.sendNewOrderNotification(order);
+      } catch (notifError) {
+        fastify.log.error('Push notification error:', notifError);
       }
 
       return reply.send({
@@ -289,6 +298,13 @@ export async function orderRoutes(fastify: FastifyInstance) {
         }
       } catch (socketError) {
         console.error('[Orders] Socket emission error:', socketError);
+      }
+
+      // Send push notification for order status update
+      try {
+        await notificationService.sendOrderStatusNotification(updatedOrder);
+      } catch (notifError) {
+        console.error('[Orders] Push notification error:', notifError);
       }
 
       console.log('[Orders] Order status updated successfully');
