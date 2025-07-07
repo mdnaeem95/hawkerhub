@@ -176,7 +176,7 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: 'white',
   },
   content: {
     paddingBottom: spacing.xl,
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingVertical: spacing.xl,
-    backgroundColor: theme.colors.surface,
+    backgroundColor: 'white',
   },
   avatar: {
     backgroundColor: theme.colors.primary,

@@ -6,6 +6,7 @@ import {
   Image,
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import {
   Text,
@@ -31,6 +32,7 @@ interface Stall {
   isActive: boolean;
   cuisine?: string;
   rating?: number;
+  imageUrl: string;
 }
 
 type StallListScreenNavigationProp = StackNavigationProp<CustomerStackParamList, 'StallList'>;
@@ -97,56 +99,57 @@ export const StallListScreen: React.FC = () => {
     try {
       setLoading(true);
 
-      // Debug logging
-      console.log('API Base URL:', api.defaults.baseURL);
-      console.log('Fetching from:', `/api/hawkers/${hawkerId}/stalls`);
-      console.log('Full URL:', `${api.defaults.baseURL}/api/hawkers/${hawkerId}/stalls`);
+      console.log('Fetching stalls for hawker:', hawkerId);
 
       const response = await api.get(`/hawkers/${hawkerId}/stalls`);
-      setStalls(response.data.stalls);
-      setFilteredStalls(response.data.stalls);
+      
+      if (response.data.stalls) {
+        // Add cuisine based on stall names (since it's not in the DB schema)
+        const stallsWithCuisine = response.data.stalls.map((stall: any) => {
+          let cuisine = 'Local';
+          
+          // Determine cuisine based on stall name or description
+          if (stall.name.toLowerCase().includes('chicken rice') || 
+              stall.name.toLowerCase().includes('char kway teow') ||
+              stall.description?.toLowerCase().includes('chinese')) {
+            cuisine = 'Chinese';
+          } else if (stall.name.toLowerCase().includes('nasi') || 
+                     stall.name.toLowerCase().includes('malay') ||
+                     stall.description?.toLowerCase().includes('malay')) {
+            cuisine = 'Malay';
+          } else if (stall.name.toLowerCase().includes('briyani') || 
+                     stall.name.toLowerCase().includes('indian') ||
+                     stall.description?.toLowerCase().includes('indian')) {
+            cuisine = 'Indian';
+          } else if (stall.name.toLowerCase().includes('drink') || 
+                     stall.name.toLowerCase().includes('juice')) {
+            cuisine = 'Beverages';
+          }
+          
+          return {
+            ...stall,
+            cuisine,
+            rating: 4.0 + Math.random() * 0.8 // Mock rating between 4.0-4.8
+          };
+        });
+        
+        setStalls(stallsWithCuisine);
+        setFilteredStalls(stallsWithCuisine);
+        
+        console.log(`Loaded ${stallsWithCuisine.length} stalls`);
+      }
     } catch (error: any) {
       console.error('Error fetching stalls:', error);
       console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      console.error('Error config:', error.config?.url);
-      // For now, use mock data
-      const mockStalls: Stall[] = [
-        {
-          id: '1',
-          name: 'Hainanese Chicken Rice',
-          description: 'Famous for tender chicken and fragrant rice',
-          isActive: true,
-          cuisine: 'Chinese',
-          rating: 4.5,
-        },
-        {
-          id: '2',
-          name: 'Char Kway Teow',
-          description: 'Wok-fried flat rice noodles with prawns',
-          isActive: true,
-          cuisine: 'Chinese',
-          rating: 4.3,
-        },
-        {
-          id: '3',
-          name: 'Nasi Lemak Corner',
-          description: 'Coconut rice with sambal and sides',
-          isActive: true,
-          cuisine: 'Malay',
-          rating: 4.6,
-        },
-        {
-          id: '4',
-          name: 'Indian Rojak',
-          description: 'Mixed fritters with special sauce',
-          isActive: false,
-          cuisine: 'Indian',
-          rating: 4.2,
-        },
-      ];
-      setStalls(mockStalls);
-      setFilteredStalls(mockStalls);
+      
+      Alert.alert(
+        'Error Loading Stalls',
+        'Unable to load stalls. Please check your connection and try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Retry', onPress: fetchStalls }
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -189,9 +192,10 @@ export const StallListScreen: React.FC = () => {
         <Card.Content style={styles.cardContent}>
           <Image
             source={{ 
-              uri: 'https://via.placeholder.com/80x80?text=Stall' 
+              uri: item.imageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=C73E3A&color=fff&size=80`
             }}
             style={styles.stallImage}
+            resizeMode='cover'
           />
           <View style={styles.stallInfo}>
             <Text variant="titleMedium" style={styles.stallName}>
@@ -212,7 +216,7 @@ export const StallListScreen: React.FC = () => {
                 <View style={styles.rating}>
                   <Icon name="star" size={16} color="#FFC107" />
                   <Text variant="bodySmall" style={styles.ratingText}>
-                    {item.rating}
+                    {item.rating.toFixed(1)}
                   </Text>
                 </View>
               )}
@@ -229,7 +233,7 @@ export const StallListScreen: React.FC = () => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       {/* Table Info */}
       <View style={styles.tableInfo}>
         <Icon name="table-furniture" size={20} color={theme.colors.primary} />
@@ -245,6 +249,7 @@ export const StallListScreen: React.FC = () => {
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={styles.searchbar}
+          inputStyle={styles.searchInput}
         />
       </View>
 
@@ -327,16 +332,21 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: spacing.md,
-    paddingBottom: 0,
+    paddingBottom: spacing.sm,
+    justifyContent: 'center'
   },
   searchbar: {
     elevation: 0,
     backgroundColor: theme.colors.surfaceVariant,
-    height: 48,
+  },
+  searchInput: {
+    fontSize: 16,
+    paddingLeft: 0,
   },
   filterWrapper: {
     height: 48,
     backgroundColor: theme.colors.surface,
+    marginBottom: spacing.sm,
   },
   filterContainer: {
     paddingHorizontal: spacing.md,
@@ -349,6 +359,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: spacing.md,
+    paddingBottom: spacing.xl * 4, // Add extra padding for tab bar
   },
   stallCard: {
     marginBottom: spacing.md,
@@ -359,12 +370,15 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: 'row',
     position: 'relative',
+    alignItems: 'stretch'
   },
   stallImage: {
     width: 80,
-    height: 80,
+    aspectRatio: 1,
     borderRadius: 8,
+    alignSelf: 'stretch',
     marginRight: spacing.md,
+    backgroundColor: theme.colors.surfaceVariant,
   },
   stallInfo: {
     flex: 1,
@@ -383,8 +397,9 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   cuisineChip: {
-    height: 24,
     backgroundColor: theme.colors.primaryContainer,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs
   },
   rating: {
     flexDirection: 'row',
