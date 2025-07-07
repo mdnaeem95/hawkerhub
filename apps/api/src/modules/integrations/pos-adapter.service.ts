@@ -452,7 +452,7 @@ Reply:
 // === Main POS Integration Service ===
 export class POSIntegrationService {
   private adapters = new Map<string, POSAdapter>();
-  private syncIntervals = new Map<string, NodeJS.Timer>();
+  private syncIntervals = new Map<string, NodeJS.Timeout>();
   
   async connectStallPOS(stallId: string, posConfig: POSConfig): Promise<void> {
     // Clean up existing connection if any

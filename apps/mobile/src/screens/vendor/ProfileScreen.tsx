@@ -6,13 +6,11 @@ import {
   ScrollView,
   Alert,
   Switch,
-  TouchableOpacity,
 } from 'react-native';
 import {
   Text,
   Card,
   List,
-  Divider,
   Button,
   Portal,
   Modal,
@@ -242,6 +240,13 @@ export const ProfileScreen: React.FC = () => {
             left={props => <List.Icon {...props} icon="food" />}
             right={props => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => navigation.navigate('EditMenuItem' as any)}
+          />
+          <List.Item
+            title="POS Integration"
+            description="Connect your POS system"
+            left={props => <List.Icon {...props} icon="link" />}
+            right={props => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => navigation.navigate('POSIntegration' as any)}
           />
         </List.Section>
       </Card>

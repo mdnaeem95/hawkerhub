@@ -11,6 +11,7 @@ import { VendorOrdersScreen } from '@/screens/vendor/OrdersScreen';
 import ProfileScreen from '@/screens/vendor/ProfileScreen';
 import { MenuManagementScreen } from '@/screens/vendor/MenuScreen';
 import { AnalyticsScreen } from '@/screens/vendor/AnalyticsScreen';
+import { POSIntegrationScreen } from '@/screens/vendor/POSIntegrationScreen';
 
 export type VendorTabParamList = {
   Dashboard: undefined;
@@ -18,6 +19,7 @@ export type VendorTabParamList = {
   Menu: undefined;
   Analytics: undefined;
   Profile: undefined;
+  POSIntegration: undefined;
 };
 
 export type VendorStackParamList = {
@@ -52,6 +54,9 @@ function VendorTabs() {
               iconName = focused ? 'chart-line' : 'chart-line-variant';
               break;
             case 'Profile':
+              iconName = focused ? 'account' : 'account-outline';
+              break;
+            case 'POSIntegration':
               iconName = focused ? 'account' : 'account-outline';
               break;
             default:
@@ -100,6 +105,11 @@ function VendorTabs() {
         name="Profile" 
         component={ProfileScreen}
         options={{ title: 'Profile' }}
+      />
+      <Tab.Screen 
+        name="POSIntegration" 
+        component={POSIntegrationScreen}
+        options={{ title: 'POS Integration' }}
       />
     </Tab.Navigator>
   );

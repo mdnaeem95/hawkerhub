@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { POSIntegrationService } from './pos-adapter.service';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -182,7 +182,7 @@ export async function integrationRoutes(
         where: { id: vendor.stall.id },
         data: {
           posType: null,
-          posConfig: null,
+          posConfig: Prisma.JsonNull,
           lastMenuSync: null
         }
       });
