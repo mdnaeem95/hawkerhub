@@ -35,6 +35,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useSocket, useSocketConnection } from '@/hooks/useSocket';
 import { Snackbar } from 'react-native-paper';
 import { formatDistanceToNow } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface OrderItem {
   id: string;
@@ -286,29 +287,60 @@ const OrdersScreen: React.FC = () => {
 
   // Reorder functionality
   const handleReorder = async (order: Order) => {
-    Alert.alert(
-      'Reorder',
-      `Reorder from ${order.stall.name}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reorder',
-          onPress: () => {
-            // Navigate to menu with pre-selected items
-            // For now, just navigate to the menu screen
-            // The menu screen would need to be updated to handle reorderItems
-            navigation.navigate('Order' as any, {
-              screen: 'Menu',
-              params: {
+    // Check if user has an active session
+    const sessionStr = await AsyncStorage.getItem('currentSession');
+    
+    if (!sessionStr) {
+      // No active session, need to scan QR first
+      Alert.alert(
+        'Scan Table First',
+        'Please scan your table QR code to start a new order',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          },
+          {
+            text: 'Scan QR',
+            onPress: async () => {
+              // Store reorder info
+              await AsyncStorage.setItem('reorderInfo', JSON.stringify({
                 stallId: order.stall.id,
                 stallName: order.stall.name,
-                // reorderItems: order.items // Menu screen needs to be updated to handle this
-              }
-            });
+                items: order.items
+              }));
+              
+              // Navigate to scan screen
+              navigation.navigate('Order' as any);
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+    } else {
+      // Has active session, can reorder directly
+      const session = JSON.parse(sessionStr);
+      
+      Alert.alert(
+        'Reorder',
+        `Reorder from ${order.stall.name}?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Reorder',
+            onPress: () => {
+              navigation.navigate('Order' as any, {
+                screen: 'Menu',
+                params: {
+                  stallId: order.stall.id,
+                  stallName: order.stall.name,
+                  reorderItems: order.items
+                }
+              });
+            }
+          }
+        ]
+      );
+    }
   };
 
   // Show order details

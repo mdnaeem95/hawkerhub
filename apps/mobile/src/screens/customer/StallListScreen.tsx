@@ -56,6 +56,10 @@ export const StallListScreen: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    checkForReorderAndNavigate();
+  }, []);
+
+  useEffect(() => {
     filterStalls();
   }, [searchQuery, selectedCuisine, stalls]);
 
@@ -65,6 +69,28 @@ export const StallListScreen: React.FC = () => {
       tableNumber,
       timestamp: Date.now(),
     }));
+  };
+
+  const checkForReorderAndNavigate = async () => {
+    try {
+      // Check if we have reorder info
+      const reorderInfoStr = await AsyncStorage.getItem('reorderInfo');
+      if (!reorderInfoStr) return;
+
+      const reorderInfo = JSON.parse(reorderInfoStr);
+      
+      // Clear the reorder info
+      await AsyncStorage.removeItem('reorderInfo');
+
+      // Navigate directly to the menu
+      navigation.navigate('Menu', {
+        stallId: reorderInfo.stallId,
+        stallName: reorderInfo.stallName,
+        reorderItems: reorderInfo.items
+      });
+    } catch (error) {
+      console.error('Error checking reorder:', error);
+    }
   };
 
   const fetchStalls = async () => {

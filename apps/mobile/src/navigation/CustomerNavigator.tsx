@@ -18,7 +18,21 @@ import ProfileScreen from '@/screens/customer/ProfileScreen';
 export type CustomerStackParamList = {
   ScanTable: undefined;
   StallList: { hawkerId: string; tableNumber: string };
-  Menu: { stallId: string; stallName: string };
+  Menu: { 
+    stallId: string; 
+    stallName: string;
+    reorderItems?: Array<{
+      id: string;
+      menuItemId: string;
+      quantity: number;
+      specialInstructions?: string;
+      menuItem: {
+        id: string;
+        name: string;
+        price: number;
+      };
+    }>;
+  };
   Cart: undefined;
   Payment: {
     orderId: string;

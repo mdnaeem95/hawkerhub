@@ -23,16 +23,34 @@ import {
   Portal,
   TextInput,
   Divider,
+  Surface,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useCartStore } from '@/store/cartStore';
 import { CustomerStackParamList } from '@/navigation/CustomerNavigator';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-type MenuScreenNavigationProp = StackNavigationProp<CustomerStackParamList, 'Menu'>;
+type MenuScreenNavigationProp = StackNavigationProp<CustomerStackParamList & {
+  Menu: {
+    stallId: string,
+    stallName: string;
+    reorderItems?: Array<{
+      id: string;
+      menuItemId: string;
+      quantity: string;
+      specialInstructions?: string;
+      menuItem: {
+        id: string;
+        name: string;
+        price: number;
+      }
+    }>
+  }
+} ,'Menu'>;
 type MenuScreenRouteProp = RouteProp<CustomerStackParamList, 'Menu'>;
 
 interface MenuItem {
@@ -65,6 +83,8 @@ export const MenuScreen: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
+  const [showReorderBanner, setShowReorderBanner] = useState(false);
+  const [reorderItemsProcessed, setReorderItemsProcessed] = useState(false);
   
   const cartItemCount = useCartStore(state => state.getTotalItems());
   const addToCart = useCartStore(state => state.addItem);
@@ -72,6 +92,17 @@ export const MenuScreen: React.FC = () => {
   useEffect(() => {
     fetchMenuItems();
   }, []);
+
+  // Add this effect to handle reorder items
+  useFocusEffect(
+    React.useCallback(() => {
+      // Process reorder items when screen is focused
+      if (route.params?.reorderItems && !reorderItemsProcessed && menuItems.length > 0) {
+        processReorderItems(route.params.reorderItems);
+        setReorderItemsProcessed(true);
+      }
+    }, [route.params?.reorderItems, menuItems, reorderItemsProcessed])
+  );
 
   const fetchMenuItems = async () => {
     try {
@@ -180,8 +211,75 @@ export const MenuScreen: React.FC = () => {
     </Card>
   );
 
+  // Add this function before the return statement
+  const processReorderItems = (reorderItems: typeof route.params.reorderItems) => {
+    if (!reorderItems) return;
+
+    // Clear existing cart items for this stall
+    const currentItems = useCartStore.getState().items;
+    const otherStallItems = currentItems.filter(item => item.stallId !== stallId);
+    useCartStore.setState({ items: otherStallItems });
+
+    // Add reorder items to cart
+    let addedCount = 0;
+    reorderItems.forEach((orderItem: any) => {
+      // Check if the menu item still exists and is available
+      const menuItem = menuItems.find(m => m.id === orderItem.menuItemId);
+      
+      if (menuItem && menuItem.isAvailable) {
+        addToCart({
+          menuItemId: menuItem.id,
+          stallId,
+          stallName,
+          name: menuItem.name,
+          price: Number(menuItem.price),
+          quantity: orderItem.quantity,
+          specialInstructions: orderItem.specialInstructions,
+          imageUrl: menuItem.imageUrl,
+        });
+        addedCount++;
+      }
+    });
+
+    if (addedCount > 0) {
+      setShowReorderBanner(true);
+      // Auto-hide banner after 5 seconds
+      setTimeout(() => setShowReorderBanner(false), 5000);
+      
+      Alert.alert(
+        'Items Added to Cart',
+        `${addedCount} item${addedCount > 1 ? 's' : ''} from your previous order have been added to cart.`,
+        [
+          { text: 'View Cart', onPress: () => navigation.navigate('Cart') },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Items Unavailable',
+        'Some items from your previous order are no longer available.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const ReorderBanner = () => (
+    <Surface style={styles.reorderBanner} elevation={3}>
+      <Icon name="repeat" size={20} color={theme.colors.primary} />
+      <Text style={styles.reorderBannerText}>
+        Reordering from your previous order
+      </Text>
+      <IconButton
+        icon="close"
+        size={16}
+        onPress={() => setShowReorderBanner(false)}
+      />
+    </Surface>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
+      {showReorderBanner && <ReorderBanner />}
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -470,6 +568,23 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  reorderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.primary + '10',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+    marginBottom: spacing.md,
+    borderRadius: 8,
+  },
+  reorderBannerText: {
+    flex: 1,
+    marginLeft: spacing.sm,
+    color: theme.colors.primary,
+    fontWeight: '500',
   },
 });
 
