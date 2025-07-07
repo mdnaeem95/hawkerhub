@@ -3,7 +3,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { POSIntegrationService } from './pos-adapter.service';
 import crypto from 'crypto';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -63,27 +63,44 @@ export async function integrationRoutes(
     };
   });
 
-  // Test POS connection
+  // Test POS connection - Fixed schema
   fastify.post('/integrations/pos/test', {
     schema: {
-      body: TestConnectionSchema
+      body: {
+        type: 'object',
+        required: ['type', 'credentials'],
+        properties: {
+          type: { 
+            type: 'string', 
+            enum: ['storehub', 'square', 'spreadsheet'] 
+          },
+          credentials: { 
+            type: 'object'
+          }
+        }
+      }
     }
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { type, credentials } = request.body as z.infer<typeof TestConnectionSchema>;
+      const body = request.body as z.infer<typeof TestConnectionSchema>;
+      
+      // Validate with Zod for additional validation
+      const validatedData = TestConnectionSchema.parse(body);
+      const { type, credentials } = validatedData;
       
       // Create temporary adapter to test connection
       let adapter: any;
+      const { StoreHubAdapter, SquareAdapter, SpreadsheetAdapter } = await import('./pos-adapter.service');
       
       switch (type) {
         case 'storehub':
-          adapter = new (await import('./pos-adapter.service')).StoreHubAdapter(credentials);
+          adapter = new StoreHubAdapter(credentials);
           break;
         case 'square':
-          adapter = new (await import('./pos-adapter.service')).SquareAdapter(credentials);
+          adapter = new SquareAdapter(credentials);
           break;
         case 'spreadsheet':
-          adapter = new (await import('./pos-adapter.service')).SpreadsheetAdapter(credentials);
+          adapter = new SpreadsheetAdapter(credentials);
           break;
       }
       
@@ -105,15 +122,32 @@ export async function integrationRoutes(
     }
   });
 
-  // Connect POS to stall
+  // Connect POS to stall - Fixed schema
   fastify.post('/integrations/pos/connect', {
     preHandler: fastify.authenticate,
     schema: {
-      body: ConnectPOSSchema
+      body: {
+        type: 'object',
+        required: ['type'],
+        properties: {
+          type: { 
+            type: 'string', 
+            enum: ['storehub', 'square', 'spreadsheet', 'none'] 
+          },
+          credentials: { 
+            type: 'object',
+            nullable: true
+          }
+        }
+      }
     }
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const { type, credentials } = request.body as z.infer<typeof ConnectPOSSchema>;
+      const body = request.body as z.infer<typeof ConnectPOSSchema>;
+      
+      // Validate with Zod
+      const validatedData = ConnectPOSSchema.parse(body);
+      const { type, credentials } = validatedData;
       const vendorId = request.user?.id;
       
       // Get vendor's stall
@@ -128,9 +162,6 @@ export async function integrationRoutes(
           message: 'Vendor stall not found'
         });
       }
-      
-      // Encrypt credentials before storing
-      const encryptedCredentials = credentials ? encryptCredentials(credentials) : null;
       
       // Connect POS
       const posConfig = type === 'none' 
@@ -159,7 +190,7 @@ export async function integrationRoutes(
   // Disconnect POS
   fastify.delete('/integrations/pos/disconnect', {
     preHandler: fastify.authenticate
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const vendorId = request.user?.id;
       
@@ -203,7 +234,7 @@ export async function integrationRoutes(
   // Manual sync trigger
   fastify.post('/integrations/pos/sync', {
     preHandler: fastify.authenticate
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const vendorId = request.user?.id;
       
@@ -283,7 +314,7 @@ export async function integrationRoutes(
   // Get sync history
   fastify.get('/integrations/pos/sync-history', {
     preHandler: fastify.authenticate
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const vendorId = request.user?.id;
       
@@ -323,7 +354,7 @@ export async function integrationRoutes(
   // Get integration status
   fastify.get('/integrations/pos/status', {
     preHandler: fastify.authenticate
-  }, async (request, reply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const vendorId = request.user?.id;
       
