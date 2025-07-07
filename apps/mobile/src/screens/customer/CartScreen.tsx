@@ -1,4 +1,3 @@
-// apps/mobile/src/screens/customer/CartScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -16,10 +15,9 @@ import {
   RadioButton,
   Portal,
   Modal,
-  TextInput,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';

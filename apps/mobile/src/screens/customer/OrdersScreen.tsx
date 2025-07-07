@@ -1,4 +1,3 @@
-// apps/mobile/src/screens/customer/OrdersScreen.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -6,7 +5,6 @@ import {
   ScrollView,
   RefreshControl,
   SectionList,
-  Image,
   Alert,
   Pressable,
   Animated,
@@ -18,7 +16,6 @@ import {
   Button,
   ActivityIndicator,
   ProgressBar,
-  List,
   Divider,
   Badge,
   IconButton,
@@ -30,12 +27,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
-import { ordersApi, api } from '@/services/api';
-import { useAuthStore } from '@/store/authStore';
 import { useSocket, useSocketConnection } from '@/hooks/useSocket';
 import { Snackbar } from 'react-native-paper';
 import { formatDistanceToNow } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ordersApi } from '@/services/orders.api';
 
 interface OrderItem {
   id: string;
@@ -85,7 +81,6 @@ interface OrderSection {
 const OrdersScreen: React.FC = () => {
   // Import navigation types
   const navigation = useNavigation<any>(); // Fix navigation type error
-  const { user } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,58 +119,58 @@ const OrdersScreen: React.FC = () => {
 
   // Handle real-time order updates
   useSocket('order:updated', useCallback((updatedOrder: Order) => {
-    console.log('Order updated via socket:', updatedOrder);
     
-    setOrders(prevOrders => {
-      const index = prevOrders.findIndex(o => o.id === updatedOrder.id);
-      if (index !== -1) {
-        const newOrders = [...prevOrders];
-        newOrders[index] = updatedOrder;
-        return newOrders;
-      }
-      return prevOrders;
+  setOrders(prevOrders => {
+    const index = prevOrders.findIndex(o => o.id === updatedOrder.id);
+    if (index !== -1) {
+      const newOrders = [...prevOrders];
+      newOrders[index] = updatedOrder;
+      return newOrders;
+    }
+    return prevOrders;
+  });
+
+  // Enhanced notifications
+  const statusMessages = {
+    'PREPARING': {
+      title: '👨‍🍳 Order Being Prepared',
+      message: `Your order #${updatedOrder.orderNumber} is now being prepared by ${updatedOrder.stall.name}`,
+      icon: 'chef-hat'
+    },
+    'READY': {
+      title: '✅ Order Ready!',
+      message: `Please collect order #${updatedOrder.orderNumber} from ${updatedOrder.stall.name}`,
+      icon: 'bell-ring'
+    },
+    'COMPLETED': {
+      title: '🎉 Thank You!',
+      message: `Order #${updatedOrder.orderNumber} completed. Enjoy your meal!`,
+      icon: 'check-circle'
+    },
+    'CANCELLED': {
+      title: '❌ Order Cancelled',
+      message: `Order #${updatedOrder.orderNumber} has been cancelled. Please contact the stall.`,
+      icon: 'close-circle'
+    }
+  };
+
+  const status = statusMessages[updatedOrder.status as keyof typeof statusMessages];
+
+  if (status) {
+    // Show in-app notification
+    setNotification({
+      visible: true,
+      message: status.message,
+      type: updatedOrder.status === 'CANCELLED' ? 'error' : 
+            updatedOrder.status === 'READY' ? 'success' : 'info'
     });
 
-    // Enhanced notifications
-    const statusMessages = {
-      'PREPARING': {
-        title: '👨‍🍳 Order Being Prepared',
-        message: `Your order #${updatedOrder.orderNumber} is now being prepared by ${updatedOrder.stall.name}`,
-        icon: 'chef-hat'
-      },
-      'READY': {
-        title: '✅ Order Ready!',
-        message: `Please collect order #${updatedOrder.orderNumber} from ${updatedOrder.stall.name}`,
-        icon: 'bell-ring'
-      },
-      'COMPLETED': {
-        title: '🎉 Thank You!',
-        message: `Order #${updatedOrder.orderNumber} completed. Enjoy your meal!`,
-        icon: 'check-circle'
-      },
-      'CANCELLED': {
-        title: '❌ Order Cancelled',
-        message: `Order #${updatedOrder.orderNumber} has been cancelled. Please contact the stall.`,
-        icon: 'close-circle'
-      }
-    };
-
-    const status = statusMessages[updatedOrder.status as keyof typeof statusMessages];
-    if (status) {
-      // Show in-app notification
-      setNotification({
-        visible: true,
-        message: status.message,
-        type: updatedOrder.status === 'CANCELLED' ? 'error' : 
-              updatedOrder.status === 'READY' ? 'success' : 'info'
-      });
-
-      // Show system notification if app is in background
-      if (updatedOrder.status === 'READY') {
-        // This would trigger a push notification in production
-        console.log('Order ready notification:', status);
-      }
+    // Show system notification if app is in background
+    if (updatedOrder.status === 'READY') {
+      // This would trigger a push notification in production
+      console.log('Order ready notification:', status);
     }
+  }
   }, []));
 
   // Handle new orders created
@@ -534,19 +529,20 @@ const OrdersScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Orders</Text>
         {orders.filter(o => o.status === 'READY').length > 0 && (
-          <Badge style={styles.headerBadge}>
-            {`${orders.filter(o => o.status === 'READY').length} Ready`}
-          </Badge>
+          <View style={styles.readyBadgeContainer}>
+            <Badge style={styles.headerBadge}>
+              {`${orders.filter(o => o.status === 'READY').length} Ready`}
+            </Badge>
+          </View>
         )}
       </View>
 
       {orders.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Icon name="receipt-text-outline" size={80} color={theme.colors.gray[300]} />
+          <Icon name="receipt" size={80} color={theme.colors.gray[300]} />
           <Text style={styles.emptyTitle}>No orders yet</Text>
           <Text style={styles.emptyText}>
             Scan a table QR code to start ordering
@@ -709,17 +705,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.gray[50],
   },
+  readyBadgeContainer: {
+    position: 'absolute',
+    top: spacing.sm,
+    right: spacing.lg,
+    zIndex: 1,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: theme.colors.gray[900],
   },
   headerBadge: {
     backgroundColor: theme.colors.success,
@@ -739,6 +736,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
+    marginTop: -spacing.xl * 2,
   },
   emptyTitle: {
     fontSize: 24,

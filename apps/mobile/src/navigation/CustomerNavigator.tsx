@@ -14,6 +14,7 @@ import { CartScreen } from '@/screens/customer/CartScreen';
 import { MenuScreen } from '@/screens/customer/MenuScreen';
 import { PaymentScreen } from '@/screens/customer/PaymentScreen';
 import ProfileScreen from '@/screens/customer/ProfileScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type CustomerStackParamList = {
   ScanTable: undefined;
@@ -110,6 +111,8 @@ function OrderingStack() {
 }
 
 export function CustomerNavigator() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -131,8 +134,8 @@ export function CustomerNavigator() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray[500],
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
+          height: 40 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -153,8 +156,8 @@ export function CustomerNavigator() {
               return { display: 'none' };
             }
             return {
-              height: 60,
-              paddingBottom: 8,
+              height: 40 + insets.bottom,
+              paddingBottom: insets.bottom,
               paddingTop: 8,
             };
           })(route),
