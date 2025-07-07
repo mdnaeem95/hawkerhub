@@ -13,17 +13,50 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hawkerhub.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "HawkerHub needs camera access to scan table QR codes for ordering",
+        "NSPhotoLibraryUsageDescription": "HawkerHub needs photo library access to upload menu item images",
+        "NSLocationWhenInUseUsageDescription": "HawkerHub uses your location to find nearby hawker centers"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.hawkerhub.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "VIBRATE"
+      ],
       "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "30725a58-780a-473d-a536-cbc72483671b"
+      }
+    },
+    "plugins": [
+      "expo-camera",
+      [
+        "expo-barcode-scanner",
+        {
+          "cameraPermission": "Allow HawkerHub to access camera for QR code scanning"
+        }
+      ]
+    ],
+    "owner": "naeemsani95"
   }
 }
