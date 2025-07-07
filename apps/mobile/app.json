@@ -31,6 +31,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.hawkerhub.app",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "permissions": [
         "CAMERA",

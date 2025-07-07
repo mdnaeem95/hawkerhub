@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "803638590634",
+    "project_id": "hawkerhub-db0b9",
+    "storage_bucket": "hawkerhub-db0b9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:803638590634:android:49c16781e73e29f94f24d3",
+        "android_client_info": {
+          "package_name": "com.hawkerhub.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAzw15GZJJsPJdyVhdKlsdZozEcGafXftc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
