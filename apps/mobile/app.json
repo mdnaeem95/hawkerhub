@@ -50,13 +50,7 @@
       }
     },
     "plugins": [
-      "expo-camera",
-      [
-        "expo-barcode-scanner",
-        {
-          "cameraPermission": "Allow HawkerHub to access camera for QR code scanning"
-        }
-      ]
+      "expo-camera"
     ],
     "owner": "naeemsani95"
   }
