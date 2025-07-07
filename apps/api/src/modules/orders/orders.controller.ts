@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { emitNewOrder, emitOrderUpdate } from '../../plugins/socket.plugin';
 import { NotificationService } from '../notifications/notification.service';
+import { POSIntegrationService } from '../integrations/pos-adapter.service';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
@@ -41,7 +42,8 @@ function generateCollectionCode(): string {
   return code;
 }
 
-export async function orderRoutes(fastify: FastifyInstance) {
+export async function orderRoutes(fastify: FastifyInstance, options?: { posService?: POSIntegrationService }) {
+  const posService = options?.posService;
   // Create order
   fastify.post('/orders', {
     preHandler: fastify.authenticate
@@ -175,6 +177,18 @@ export async function orderRoutes(fastify: FastifyInstance) {
         await notificationService.sendNewOrderNotification(order);
       } catch (notifError) {
         fastify.log.error('Push notification error:', notifError);
+      }
+
+      // Push order to POS system if integrated
+      if (posService) {
+        try {
+          await posService.pushOrderToPOS(order.id);
+          fastify.log.info(`Order ${order.id} pushed to POS system`);
+        } catch (posError) {
+          fastify.log.error('POS push error:', posError);
+          // Don't fail the order if POS push fails
+          // The vendor will still receive WhatsApp/notification
+        }
       }
 
       return reply.send({

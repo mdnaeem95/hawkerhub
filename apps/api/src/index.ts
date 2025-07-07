@@ -12,6 +12,8 @@ import { orderRoutes } from './modules/orders/orders.controller';
 import { vendorRoutes } from './modules/vendor/vendor.controller';
 import { paymentRoutes } from './modules/payments/payment.controller';
 import { notificationRoutes } from './modules/notifications/notification.controller';
+import { POSIntegrationService } from './modules/integrations/pos-adapter.service';
+import { integrationRoutes } from './modules/integrations/integration.controller';
 
 // Load environment variables
 dotenv.config();
@@ -47,6 +49,9 @@ declare module 'fastify' {
 
 async function start() {
   try {
+    // initialize POS Integration service
+    const posService = new POSIntegrationService();
+
     // Register plugins
     await fastify.register(cors, {
       origin: true,
@@ -91,10 +96,15 @@ async function start() {
       // Register other routes
       await fastify.register(stallRoutes, { prefix: '/api' });
       await fastify.register(hawkerRoutes, { prefix: '/api' });
-      await fastify.register(orderRoutes, { prefix: '/api' });
+      await fastify.register(async (fastify) => { orderRoutes(fastify, { posService });}, { prefix: '/api' });
       await fastify.register(vendorRoutes, { prefix: '/api' });
       await fastify.register(paymentRoutes, { prefix: '/api' });
       await fastify.register(notificationRoutes, { prefix: '/api' });
+
+      // register integration routes
+      await fastify.register(async (fastify) => {
+        await integrationRoutes(fastify, posService);
+      }, { prefix: '/api' });
     });
     
     // Start server
