@@ -1,4 +1,4 @@
-// apps/api/src/index.ts
+// apps/api/src/index.ts - UPDATED VERSION
 import Fastify, { FastifyRequest, FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
@@ -11,8 +11,7 @@ import { hawkerRoutes } from './modules/hawkers/hawker.controller';
 import { orderRoutes } from './modules/orders/orders.controller';
 import { vendorRoutes } from './modules/vendor/vendor.controller';
 import { paymentRoutes } from './modules/payments/payment.controller';
-import { notificationRoutes } from './modules/notifications/notification.controller'; // ADD THIS
-import { AuthService } from './modules/auth/auth.service';
+import { notificationRoutes } from './modules/notifications/notification.controller';
 
 // Load environment variables
 dotenv.config();
@@ -83,54 +82,19 @@ async function start() {
       }
     });
 
-    // Register auth routes
-    const authService = new AuthService();
-    
-    // Auth routes - without plugin encapsulation
-    fastify.post('/api/auth/send-otp', async (request, reply) => {
-      try {
-        const { phoneNumber, userType } = request.body as any;
-        const result = await authService.sendOTP(phoneNumber, userType);
-        return reply.send(result);
-      } catch (error: any) {
-        return reply.code(400).send({ 
-          success: false, 
-          message: error.message 
-        });
-      }
-    });
-
-    fastify.post('/api/auth/verify-otp', async (request, reply) => {
-      try {
-        const { phoneNumber, otp, userType } = request.body as any;
-        const result = await authService.verifyOTP(phoneNumber, otp, userType);
-        return reply.send({ success: true, ...result });
-      } catch (error: any) {
-        return reply.code(401).send({ 
-          success: false, 
-          message: error.message 
-        });
-      }
-    });
-
-    fastify.get('/api/auth/me', {
-      preHandler: fastify.authenticate,
-    }, async (request, reply) => {
-      console.log('[Auth/me] request.user:', request.user);
-      return reply.send({ 
-        success: true, 
-        user: request.user 
-      });
-    });
-    
-    // Register other routes with shared context
+    // REMOVE THE MANUAL AUTH ROUTES AND USE authRoutes INSTEAD
+    // Register all routes with shared context
     await fastify.register(async function (fastify) {
+      // Register auth routes from controller
+      await fastify.register(authRoutes, { prefix: '/api' });
+      
+      // Register other routes
       await fastify.register(stallRoutes, { prefix: '/api' });
       await fastify.register(hawkerRoutes, { prefix: '/api' });
       await fastify.register(orderRoutes, { prefix: '/api' });
       await fastify.register(vendorRoutes, { prefix: '/api' });
       await fastify.register(paymentRoutes, { prefix: '/api' });
-      await fastify.register(notificationRoutes, { prefix: '/api' }); // ADD THIS
+      await fastify.register(notificationRoutes, { prefix: '/api' });
     });
     
     // Start server

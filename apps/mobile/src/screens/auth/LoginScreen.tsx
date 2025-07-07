@@ -12,36 +12,40 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useForm, Controller } from 'react-hook-form';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
-import { LanguageSelector } from '@/components/shared/LanguageSelector';
 import { theme, spacing, typography } from '@/constants/theme';
 import { useAuthStore } from '@/store/authStore';
 import { authApi } from '@/services/auth.api';
-import { TextInput } from 'react-native-paper';
+import { SegmentedButtons, TextInput } from 'react-native-paper';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 interface LoginForm {
   phoneNumber: string;
   otp: string;
+  name: string;
 }
 
 export const LoginScreen: React.FC = () => {
+  const [step, setStep] = useState<'phone' | 'register' | 'otp'>('phone');
   const [otpSent, setOtpSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [userType, setUserType] = useState<'customer' | 'vendor'>('customer');
+  const [isNewUser, setIsNewUser] = useState(false);
 
   const { setAuth } = useAuthStore();
   const otpInputRef = useRef<any>(null);
   
-  const { control, handleSubmit, formState: { errors }, watch, reset } = useForm<LoginForm>({
+  const { control, handleSubmit, formState: { errors }, watch, reset, setValue } = useForm<LoginForm>({
     defaultValues: {
       phoneNumber: '',
-      otp: ''
+      otp: '',
+      name: '',
     }
   });
 
   const phoneNumber = watch('phoneNumber');
+  const name = watch('name');
 
   // Resend timer effect
   useEffect(() => {
@@ -51,28 +55,45 @@ export const LoginScreen: React.FC = () => {
     }
   }, [resendTimer]);
 
-  const sendOtp = async (data: LoginForm) => {
+  const checkPhoneAndSendOTP = async (data: LoginForm) => {
     try {
       setLoading(true);
+      
+      // Check if phone exists
+      const checkResponse = await authApi.checkPhone(data.phoneNumber, userType);
+      
+      if (userType === 'vendor' && !checkResponse.data.exists) {
+        Alert.alert(
+          'Vendor Not Found',
+          'This phone number is not registered as a vendor. Please contact support to register your stall.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Send OTP
       const response = await authApi.sendOTP(data.phoneNumber, userType);
       
       if (response.data.success) {
-        setOtpSent(true);
-        setResendTimer(60); // 60 seconds cooldown
+        setIsNewUser(response.data.isNewUser);
         
-        // Focus OTP input
-        setTimeout(() => {
-          otpInputRef.current?.focus();
-        }, 100);
-        
-        Alert.alert(
-          'OTP Sent',
-          'Please check your SMS for the verification code.',
-          [{ text: 'OK' }]
-        );
+        if (userType === 'customer' && response.data.isNewUser) {
+          // New customer - show registration
+          setStep('register');
+        } else {
+          // Existing user - go to OTP
+          setStep('otp');
+          setOtpSent(true);
+          setResendTimer(60);
+          
+          Alert.alert(
+            'OTP Sent',
+            'Please check your SMS for the verification code.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     } catch (error: any) {
-      console.log('Send OTP error:', error);
       Alert.alert(
         'Error',
         error.response?.data?.message || 'Failed to send OTP. Please try again.',
@@ -83,13 +104,31 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
+  const continueToOTP = async () => {
+    if (!name.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+    
+    setStep('otp');
+    setOtpSent(true);
+    setResendTimer(60);
+    
+    Alert.alert(
+      'OTP Sent',
+      'Please check your SMS for the verification code.',
+      [{ text: 'OK' }]
+    );
+  };
+
   const verifyOtp = async (data: LoginForm) => {
     try {
       setLoading(true);
       const response = await authApi.verifyOTP(
         data.phoneNumber,
         data.otp,
-        userType
+        userType,
+        isNewUser ? data.name : undefined
       );
       
       if (response.data.success) {
@@ -107,24 +146,227 @@ export const LoginScreen: React.FC = () => {
     }
   };
 
-  const onSubmit = (data: LoginForm) => {
-    if (otpSent) {
-      verifyOtp(data);
-    } else {
-      sendOtp(data);
+  const resendOTP = async () => {
+    try {
+      setLoading(true);
+      const response = await authApi.sendOTP(phoneNumber, userType);
+      if (response.data.success) {
+        setResendTimer(60);
+        Alert.alert('Success', 'OTP has been resent.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to resend OTP.');
+    } finally {
+      setLoading(false);
     }
-  };
+  }; 
 
-  const handleResendOTP = () => {
-    if (resendTimer === 0 && phoneNumber) {
-      sendOtp({ phoneNumber, otp: '' });
-    }
-  };
+  const renderPhoneStep = () => (
+    <>
+      <View style={styles.logoContainer}>
+        <Icon name="food" size={80} color={theme.colors.primary} />
+        <Text style={styles.appName}>HawkerHub</Text>
+        <Text style={styles.tagline}>
+          {userType === 'customer' 
+            ? 'Order from your favorite hawker stalls' 
+            : 'Manage your stall efficiently'}
+        </Text>
+      </View>
 
-  const handleChangePhone = () => {
-    setOtpSent(false);
-    reset({ phoneNumber: '', otp: '' });
-  };
+      <Card style={styles.card}>
+        <SegmentedButtons
+          value={userType}
+          onValueChange={(value) => setUserType(value as 'customer' | 'vendor')}
+          buttons={[
+            { value: 'customer', label: 'Customer', icon: 'account' },
+            { value: 'vendor', label: 'Vendor', icon: 'store' }
+          ]}
+          style={styles.segmentedButtons}
+        />
+
+        <View style={styles.phoneInputContainer}>
+          <View style={styles.countryCode}>
+            <Text style={styles.countryCodeText}>+65</Text>
+          </View>
+          <Controller
+            control={control}
+            name="phoneNumber"
+            rules={{
+              required: 'Phone number is required',
+              pattern: {
+                value: /^[689]\d{7}$/,
+                message: 'Invalid Singapore phone number'
+              }
+            }}
+            render={({ field: { onChange, value } }) => (
+              <TextInput
+                mode="outlined"
+                placeholder="8123 4567"
+                value={value}
+                onChangeText={(text) => onChange(text.replace(/\D/g, ''))}
+                keyboardType="phone-pad"
+                maxLength={8}
+                error={!!errors.phoneNumber}
+                style={[styles.phoneInput, styles.paperInput]}
+                outlineColor={theme.colors.gray[300]}
+                activeOutlineColor={theme.colors.primary}
+                left={<TextInput.Icon icon="phone" />}
+              />
+            )}
+          />
+        </View>
+
+        {userType === 'vendor' && (
+          <View style={styles.infoBox}>
+            <Icon name="information" size={20} color={theme.colors.primary} />
+            <Text style={styles.infoText}>
+              Vendor accounts must be pre-registered. Contact support if you're a new vendor.
+            </Text>
+          </View>
+        )}
+
+        <Button
+          onPress={handleSubmit(checkPhoneAndSendOTP)}
+          loading={loading}
+          disabled={loading}
+          style={styles.button}
+        >
+          Continue
+        </Button>
+      </Card>
+    </>
+  );
+
+  const renderRegisterStep = () => (
+    <>
+      <View style={styles.logoContainer}>
+        <Icon name="account-plus" size={80} color={theme.colors.primary} />
+        <Text style={styles.title}>Welcome to HawkerHub!</Text>
+        <Text style={styles.subtitle}>Let's create your account</Text>
+      </View>
+
+      <Card style={styles.card}>
+        <View style={styles.phoneDisplay}>
+          <Icon name="phone" size={20} color={theme.colors.gray[600]} />
+          <Text style={styles.phoneDisplayText}>+65 {phoneNumber}</Text>
+        </View>
+
+        <Controller
+          control={control}
+          name="name"
+          rules={{ required: 'Name is required' }}
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              mode="outlined"
+              label="Your Name"
+              placeholder="Enter your name"
+              value={value}
+              onChangeText={onChange}
+              error={!!errors.name}
+              style={[styles.input, styles.paperInput]}
+              outlineColor={theme.colors.gray[300]}
+              activeOutlineColor={theme.colors.primary}
+              left={<TextInput.Icon icon="account" />}
+            />
+          )}
+        />
+
+        <Button
+          onPress={continueToOTP}
+          loading={loading}
+          disabled={loading || !name.trim()}
+          style={styles.button}
+        >
+          Continue
+        </Button>
+
+        <TouchableOpacity
+          onPress={() => {
+            setStep('phone');
+            setValue('name', '');
+          }}
+          style={styles.linkButton}
+        >
+          <Text style={styles.linkText}>← Back to phone number</Text>
+        </TouchableOpacity>
+      </Card>
+    </>
+  );
+
+  const renderOTPStep = () => (
+    <>
+      <View style={styles.logoContainer}>
+        <Icon name="shield-check" size={80} color={theme.colors.primary} />
+        <Text style={styles.title}>Verify Your Number</Text>
+        <Text style={styles.subtitle}>
+          Enter the 6-digit code sent to{'\n'}+65 {phoneNumber}
+        </Text>
+      </View>
+
+      <Card style={styles.card}>
+        <Controller
+          control={control}
+          name="otp"
+          rules={{
+            required: 'OTP is required',
+            pattern: {
+              value: /^\d{6}$/,
+              message: 'OTP must be 6 digits'
+            }
+          }}
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              ref={otpInputRef}
+              mode="outlined"
+              label="Enter OTP"
+              placeholder="123456"
+              value={value}
+              onChangeText={(text) => onChange(text.replace(/\D/g, ''))}
+              keyboardType="number-pad"
+              maxLength={6}
+              error={!!errors.otp}
+              style={[styles.otpInput, styles.paperInput]}
+              outlineColor={theme.colors.gray[300]}
+              activeOutlineColor={theme.colors.primary}
+            />
+          )}
+        />
+
+        <Button
+          onPress={handleSubmit(verifyOtp)}
+          loading={loading}
+          disabled={loading}
+          style={styles.button}
+        >
+          Verify & {isNewUser ? 'Create Account' : 'Login'}
+        </Button>
+
+        <View style={styles.resendContainer}>
+          {resendTimer > 0 ? (
+            <Text style={styles.resendTimerText}>
+              Resend OTP in {resendTimer}s
+            </Text>
+          ) : (
+            <TouchableOpacity onPress={resendOTP} disabled={loading}>
+              <Text style={styles.resendText}>Resend OTP</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <TouchableOpacity
+          onPress={() => {
+            setStep('phone');
+            setOtpSent(false);
+            setValue('otp', '');
+            setValue('name', '');
+          }}
+          style={styles.linkButton}
+        >
+          <Text style={styles.linkText}>← Change phone number</Text>
+        </TouchableOpacity>
+      </Card>
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -132,175 +374,22 @@ export const LoginScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.langSelector}>
-              <LanguageSelector />
-            </View>
-            <Text style={styles.logo}>🍜</Text>
-            <Text style={styles.title}>HawkerHub</Text>
-            <Text style={styles.subtitle}>
-              Your Digital Hawker Experience
+          {step === 'phone' && renderPhoneStep()}
+          {step === 'register' && renderRegisterStep()}
+          {step === 'otp' && renderOTPStep()}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>
+              By continuing, you agree to our{' '}
+              <Text style={styles.link}>Terms of Service</Text> and{' '}
+              <Text style={styles.link}>Privacy Policy</Text>
             </Text>
           </View>
-
-          {/* User Type Toggle */}
-          <View style={styles.userTypeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                userType === 'customer' && styles.userTypeButtonActive
-              ]}
-              onPress={() => setUserType('customer')}
-            >
-              <Text style={[
-                styles.userTypeText,
-                userType === 'customer' && styles.userTypeTextActive
-              ]}>
-                Customer
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.userTypeButton,
-                userType === 'vendor' && styles.userTypeButtonActive
-              ]}
-              onPress={() => setUserType('vendor')}
-            >
-              <Text style={[
-                styles.userTypeText,
-                userType === 'vendor' && styles.userTypeTextActive
-              ]}>
-                Vendor
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Login Form */}
-          <Card style={styles.formCard}>
-            <Text style={styles.formTitle}>
-              {otpSent ? 'Enter Verification Code' : 'Login with Phone'}
-            </Text>
-            <Text style={styles.formSubtitle}>
-              {otpSent 
-                ? `We've sent a 6-digit code to +65${phoneNumber}`
-                : 'Enter your Singapore mobile number'
-              }
-            </Text>
-
-            {/* Phone Number Input */}
-            <Controller
-              control={control}
-              name="phoneNumber"
-              rules={{
-                required: 'Phone number is required',
-                pattern: {
-                  value: /^[689]\d{7}$/,
-                  message: 'Enter a valid 8-digit Singapore number',
-                },
-              }}
-              render={({ field: { onChange, value } }) => (
-                <View style={styles.phoneInputContainer}>
-                  <Text style={styles.countryCode}>+65</Text>
-                  <TextInput
-                    placeholder="8XXX XXXX"
-                    keyboardType="phone-pad"
-                    maxLength={8}
-                    value={value}
-                    onChangeText={onChange}
-                    error={!!errors.phoneNumber?.message}
-                    editable={true}
-                    style={styles.phoneInput}
-                  />
-                </View>
-              )}
-            />
-
-            {/* OTP Input */}
-            {otpSent && (
-              <>
-                <Controller
-                  control={control}
-                  name="otp"
-                  rules={{
-                    required: 'OTP is required',
-                    pattern: {
-                      value: /^\d{6}$/,
-                      message: 'OTP must be 6 digits',
-                    },
-                  }}
-                  render={({ field: { onChange, value } }) => (
-                    <Input
-                      ref={otpInputRef}
-                      label="Verification Code"
-                      placeholder="000000"
-                      keyboardType="number-pad"
-                      maxLength={6}
-                      value={value}
-                      onChangeText={onChange}
-                      error={errors.otp?.message}
-                      style={styles.otpInput}
-                    />
-                  )}
-                />
-
-                {/* Resend OTP */}
-                <View style={styles.resendContainer}>
-                  <Text style={styles.resendText}>
-                    Didn't receive the code?{' '}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={handleResendOTP}
-                    disabled={resendTimer > 0}
-                  >
-                    <Text style={[
-                      styles.resendLink,
-                      resendTimer > 0 && styles.resendLinkDisabled
-                    ]}>
-                      {resendTimer > 0 
-                        ? `Resend in ${resendTimer}s` 
-                        : 'Resend OTP'
-                      }
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* Submit Button */}
-            <Button
-              onPress={handleSubmit(onSubmit)}
-              loading={loading}
-              disabled={loading}
-              style={styles.submitButton}
-            >
-              {otpSent ? 'Verify & Login' : 'Send OTP'}
-            </Button>
-
-            {/* Change Phone Number */}
-            {otpSent && (
-              <Button
-                variant="ghost"
-                onPress={handleChangePhone}
-                size="sm"
-                style={styles.changePhoneButton}
-              >
-                Change Phone Number
-              </Button>
-            )}
-          </Card>
-
-          {/* Terms */}
-          <Text style={styles.terms}>
-            By continuing, you agree to our{' '}
-            <Text style={styles.termsLink}>Terms of Service</Text> and{' '}
-            <Text style={styles.termsLink}>Privacy Policy</Text>
-          </Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -318,30 +407,79 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: spacing.lg,
+    paddingTop: spacing.xl,
     paddingBottom: spacing.xl,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.xl * 1.5,
+    marginTop: spacing.xl,
+  },
+  appName: {
+    ...typography.displayLarge,
+    color: theme.colors.primary,
+    marginTop: spacing.md,
+    letterSpacing: -0.5,
   },
   header: {
     alignItems: 'center',
     marginTop: spacing.xl,
     marginBottom: spacing.xl,
   },
-  langSelector: {
-    position: 'absolute',
-    top: -spacing.md,
-    right: -spacing.lg,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: spacing.sm,
+  tagline: {
+    ...typography.bodyLarge,
+    color: theme.colors.onSurfaceVariant,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+    paddingHorizontal: spacing.xl,
   },
   title: {
     ...typography.displayMedium,
-    color: theme.colors.primary,
-    marginBottom: spacing.xs,
+    color: theme.colors.onSurface,
+    marginTop: spacing.md,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 3,
   },
   subtitle: {
-    ...typography.bodyMedium,
+    ...typography.bodyLarge,
     color: theme.colors.onSurfaceVariant,
+    marginTop: spacing.sm,
+    textAlign: 'center',
+  },
+  segmentedButtons: {
+    marginBottom: spacing.lg,
+  },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.md,
+  },
+  countryCode: {
+    backgroundColor: theme.colors.surfaceVariant,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 18,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.gray[200],
+    marginRight: spacing.sm,
+  },
+  countryCodeText: {
+    ...typography.bodyLarge,
+    fontWeight: '600',
+    color: theme.colors.onSurface,
   },
   userTypeContainer: {
     flexDirection: 'row',
@@ -371,72 +509,96 @@ const styles = StyleSheet.create({
   userTypeTextActive: {
     color: theme.colors.primary,
   },
-  formCard: {
-    padding: spacing.xl,
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.roundness * 2,
-  },
-  formTitle: {
-    ...typography.displaySmall,
-    marginBottom: spacing.xs,
-  },
-  formSubtitle: {
-    ...typography.bodyMedium,
-    color: theme.colors.onSurfaceVariant,
-    marginBottom: spacing.lg,
-  },
-  phoneInputContainer: {
+  phoneDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    backgroundColor: theme.colors.surfaceVariant,
+    padding: spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.gray[200],
   },
-  countryCode: {
+  phoneDisplayText: {
     ...typography.bodyLarge,
-    color: theme.colors.onSurfaceVariant,
-    marginRight: spacing.sm,
+    marginLeft: spacing.sm,
+    color: theme.colors.onSurface,
+    fontWeight: '500',
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.warning + '15',
+    padding: spacing.md,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: spacing.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.warning + '30',
+  },
+  infoText: {
+    ...typography.bodyMedium,
+    flex: 1,
+    marginLeft: spacing.sm,
+    color: theme.colors.onSurface,
+  },
+  input: {
+    marginBottom: spacing.md,
   },
   phoneInput: {
     flex: 1,
   },
   otpInput: {
-    ...typography.displaySmall,
-    textAlign: 'center',
+    marginBottom: spacing.lg,
+    fontSize: 24,
     letterSpacing: 8,
+    textAlign: 'center',
+  },
+  button: {
+    marginTop: spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  buttonContent: {
+    paddingVertical: spacing.xs,
   },
   resendContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: spacing.md,
-    marginBottom: spacing.lg,
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  resendTimerText: {
+    ...typography.bodyMedium,
+    color: theme.colors.onSurfaceVariant,
   },
   resendText: {
     ...typography.bodyMedium,
     color: theme.colors.onSurfaceVariant,
   },
-  resendLink: {
-    ...typography.bodyMedium,
-    fontWeight: '600',
-    color: theme.colors.primary,
-  },
-  resendLinkDisabled: {
-    color: theme.colors.gray[400],
-  },
-  submitButton: {
-    marginTop: spacing.md,
-  },
-  changePhoneButton: {
+  linkButton: {
+    alignItems: 'center',
+    paddingVertical: spacing.md,
     marginTop: spacing.sm,
   },
-  terms: {
-    ...typography.bodySmall,
+  linkText: {
+    ...typography.bodyMedium,
     color: theme.colors.onSurfaceVariant,
-    textAlign: 'center',
+    fontWeight: '500',
+  },
+  footer: {
     marginTop: spacing.xl,
     paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  termsLink: {
+  footerText: {
+    ...typography.bodySmall,
+    textAlign: 'center',
+    color: theme.colors.onSurfaceVariant,
+  },
+  link: {
     color: theme.colors.primary,
     fontWeight: '500',
+    textDecorationLine: 'underline',
+  },
+  paperInput: {
+    backgroundColor: 'transparent',
+    marginBottom: spacing.md,
   },
 });

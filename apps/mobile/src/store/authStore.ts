@@ -1,8 +1,7 @@
-// apps/mobile/src/store/authStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api } from '@/services/api';
+import { tokenManager } from '@/services/tokenManager';
 
 interface User {
   id: string;
@@ -21,8 +20,6 @@ interface AuthState {
   setAuth: (token: string, user: User) => void;
   logout: () => void;
   checkAuth: () => Promise<void>;
-  isHydrated: boolean;
-  setHydrated: (hydrated: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,15 +29,10 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       userRole: null,
-      isHydrated: false,
-
-      setHydrated: (hydrated: boolean) => set({ isHydrated: hydrated }),
 
       setAuth: (token: string, user: User) => {
-        console.log('Setting auth with token:', token);
-        
-        // Set token in API client
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        // Update token manager
+        tokenManager.setToken(token);
         
         set({
           token,
@@ -48,28 +40,11 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           userRole: user.userType
         });
-
-        // Force persist to storage
-        const state = get();
-        AsyncStorage.setItem('auth-storage', JSON.stringify({
-          state: {
-            token: state.token,
-            user: state.user,
-            isAuthenticated: state.isAuthenticated,
-            userRole: state.userRole
-          }
-        })).then(() => {
-          console.log('Auth data persisted to storage');
-        }).catch(error => {
-          console.error('Error persisting auth data:', error);
-        });
       },
 
       logout: async () => {
-        console.log('Logging out...');
-        
-        // Remove token from API client
-        delete api.defaults.headers.common['Authorization'];
+        // Clear token manager
+        tokenManager.clearToken();
         
         // Clear storage
         await AsyncStorage.removeItem('auth-storage');
@@ -85,49 +60,31 @@ export const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         const state = get();
         if (state.token) {
+          // Update token manager
+          tokenManager.setToken(state.token);
+          
           try {
-            // Set token in headers
-            api.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+            // Import api here to avoid circular dependency at module level
+            const { authApi } = await import('@/services/auth.api');
+            const response = await authApi.getCurrentUser();
             
-            // Verify token is still valid
-            const response = await api.get('/auth/me');
-            if (response.data.success && response.data.user) {
+            if (response.data.user) {
               set({
                 user: response.data.user,
                 isAuthenticated: true,
                 userRole: response.data.user.userType
               });
-            } else {
-              // Token invalid, logout
-              await get().logout();
             }
           } catch (error) {
-            console.error('Auth check error:', error);
-            // Token invalid, logout
-            await get().logout();
+            console.error('Auth check failed:', error);
+            get().logout();
           }
-        } else {
-          // No token, ensure logged out state
-          set({
-            isAuthenticated: false,
-            userRole: null
-          });
         }
       }
     }),
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ 
-        token: state.token,
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-        userRole: state.userRole
-      }),
-      onRehydrateStorage: () => (state) => {
-        console.log('Auth store rehydrated:', state);
-        state?.setHydrated(true);
-      },
     }
   )
 );

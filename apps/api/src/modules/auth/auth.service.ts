@@ -19,6 +19,26 @@ export class AuthService {
     }
   }
 
+  // Check if phone exists without creating user
+  async checkPhoneExists(phoneNumber: string, userType: 'customer' | 'vendor') {
+    const normalizedPhone = phoneNumber.startsWith('+65') 
+      ? phoneNumber 
+      : `+65${phoneNumber}`;
+
+    if (userType === 'customer') {
+      const customer = await this.prisma.customer.findUnique({
+        where: { phoneNumber: normalizedPhone }
+      });
+      return { exists: !!customer, user: customer };
+    } else {
+      const vendor = await this.prisma.stallOwner.findUnique({
+        where: { phoneNumber: normalizedPhone },
+        include: { stall: true }
+      });
+      return { exists: !!vendor, user: vendor };
+    }
+  }
+
   async sendOTP(phoneNumber: string, userType: 'customer' | 'vendor') {
     // Validate Singapore phone number
     const sgPhoneRegex = /^(\+65)?[689]\d{7}$/;
@@ -27,9 +47,15 @@ export class AuthService {
     }
 
     // Normalize phone number
-    const normalizedPhone = phoneNumber.startsWith('+65') 
-      ? phoneNumber 
-      : `+65${phoneNumber}`;
+    const normalizedPhone = phoneNumber.startsWith('+65') ? phoneNumber : `+65${phoneNumber}`;
+
+    // check if user exists
+    const { exists, user } = await this.checkPhoneExists(phoneNumber, userType)
+
+    // for vendors, must exist
+    if (userType === 'vendor' && !exists) {
+      throw new Error('Vendor not found. Please contact support to register your stall.');
+    }
 
     // Generate 6-digit OTP
     const otp = randomInt(100000, 999999).toString();
@@ -58,14 +84,15 @@ export class AuthService {
     return {
       success: true,
       message: 'OTP sent successfully',
-      phoneNumber: normalizedPhone
+      isNewUser: userType === 'customer' && !exists
     };
   }
 
   async verifyOTP(
     phoneNumber: string, 
     otp: string, 
-    userType: 'customer' | 'vendor'
+    userType: 'customer' | 'vendor',
+    name?: string
   ) {
     const normalizedPhone = phoneNumber.startsWith('+65') 
       ? phoneNumber 
@@ -106,9 +133,32 @@ export class AuthService {
     // Get or create user
     let user;
     if (userType === 'customer') {
-      user = await this.findOrCreateCustomer(normalizedPhone);
+      // check if customer exists
+      user = await this.prisma.customer.findUnique({
+        where: { phoneNumber: normalizedPhone }
+      });
+
+      // create new customer if doesnt exist
+      if (!user) {
+        if (!name) {
+          throw new Error('Name is required for new customers.');
+        }
+
+        user = await this.prisma.customer.create({
+          data: {
+            phoneNumber: normalizedPhone,
+            name: name,
+            joinedAt: new Date()
+          }
+        });
+      }
     } else {
-      user = await this.findVendor(normalizedPhone);
+      // vendor must exist
+      user = await this.prisma.stallOwner.findUnique({
+        where: { phoneNumber: normalizedPhone },
+        include: { stall: true }
+      });
+      
       if (!user) {
         throw new Error('Vendor not found. Please contact support.');
       }
