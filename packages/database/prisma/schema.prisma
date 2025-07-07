@@ -34,20 +34,28 @@ model Table {
 }
 
 model Stall {
-  id          String      @id @default(cuid())
+  id          String  @id @default(cuid())
   hawkerId    String
   name        String
   description String?
   imageUrl    String?
-  qrCode      String      @unique
+  qrCode      String  @unique
   phoneNumber String
-  isActive    Boolean     @default(true)
-  menu        MenuItem[]
-  orders      Order[]
-  owner       StallOwner?
-  hawker      Hawker      @relation(fields: [hawkerId], references: [id])
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  isActive    Boolean @default(true)
+
+  // POS Integration fields
+  posType      String?
+  posConfig    Json?
+  lastMenuSync DateTime?
+
+  menu     MenuItem[]
+  orders   Order[]
+  owner    StallOwner?
+  hawker   Hawker       @relation(fields: [hawkerId], references: [id])
+  syncLogs POSSyncLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([hawkerId])
 }
@@ -68,8 +76,13 @@ model StallOwner {
 }
 
 model MenuItem {
-  id          String      @id @default(cuid())
-  stallId     String
+  id      String @id @default(cuid())
+  stallId String
+
+  // External POS reference
+  externalId   String?
+  lastSyncedAt DateTime?
+
   name        String
   nameZh      String?
   nameMy      String?
@@ -85,18 +98,23 @@ model MenuItem {
   updatedAt   DateTime    @updatedAt
 
   @@index([stallId])
+  @@index([externalId])
+  @@index([stallId, externalId])
 }
 
 model Order {
-  id            String        @id @default(cuid())
-  orderNumber   String        @unique
-  tableId       String
-  stallId       String
-  customerId    String?
-  items         OrderItem[]
-  status        OrderStatus   @default(PENDING)
-  totalAmount   Decimal       @db.Decimal(10, 2)
-  paymentMode   PaymentMode
+  id          String      @id @default(cuid())
+  orderNumber String      @unique
+  tableId     String
+  stallId     String
+  customerId  String?
+  items       OrderItem[]
+  status      OrderStatus @default(PENDING)
+  totalAmount Decimal     @db.Decimal(10, 2)
+  paymentMode PaymentMode
+
+  // POS Integration tracking
+  metadata      Json?
   table         Table         @relation(fields: [tableId], references: [id])
   stall         Stall         @relation(fields: [stallId], references: [id])
   customer      Customer?     @relation(fields: [customerId], references: [id])
@@ -110,6 +128,37 @@ model Order {
   @@index([stallId])
   @@index([status])
   @@index([customerId])
+}
+
+model POSSyncLog {
+  id          String    @id @default(cuid())
+  stallId     String
+  stall       Stall     @relation(fields: [stallId], references: [id])
+  syncType    String // 'menu' | 'order' | 'inventory'
+  status      String // 'success' | 'failed' | 'partial'
+  itemsSynced Int?
+  errors      Json?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([stallId])
+  @@index([createdAt])
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  source      String // 'storehub' | 'square' | 'whatsapp'
+  eventType   String
+  payload     Json
+  processed   Boolean   @default(false)
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@index([processed])
+  @@index([source])
+  @@index([createdAt])
 }
 
 model Payment {
