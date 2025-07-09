@@ -171,7 +171,7 @@ export const HawkerDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header Image */}
         <View style={styles.headerContainer}>
@@ -356,7 +356,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: 'white',
     marginHorizontal: spacing.lg,
-    marginTop: -spacing.xl,
+    marginTop: -spacing.md,
     borderRadius: 12,
     padding: spacing.lg,
     marginBottom: spacing.lg,
@@ -406,6 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   stallCard: {
+    marginHorizontal: spacing.xs,
     marginBottom: spacing.md,
     backgroundColor: 'white',
   },

@@ -142,6 +142,7 @@ export const DirectoryScreen: React.FC = () => {
         stallId: item.id,
         fromDirectory: true 
       })}
+      style={{ marginVertical: 2, height: '100%' }}
     >
       <Surface style={styles.popularStallCard} elevation={2}>
         <Image 
@@ -180,7 +181,7 @@ export const DirectoryScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left','right']}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -247,6 +248,7 @@ export const DirectoryScreen: React.FC = () => {
               <IconButton
                 icon="chevron-right"
                 size={20}
+                style={{ marginBottom: spacing.md }}
                 onPress={() => navigation.navigate('PopularStalls')}
               />
             </View>
@@ -336,7 +338,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: spacing.lg,
   },
   sectionTitle: {
     fontSize: 20,
@@ -358,6 +359,7 @@ const styles = StyleSheet.create({
   popularStallCard: {
     backgroundColor: 'white',
     borderRadius: 12,
+    minHeight: 200,
     padding: spacing.sm,
     width: 140,
     marginRight: spacing.md,

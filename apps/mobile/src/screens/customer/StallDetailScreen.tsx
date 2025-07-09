@@ -140,7 +140,7 @@ export const StallDetailScreen: React.FC = () => {
   const categories = Object.keys(stall.menuByCategory);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'top']}>
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
