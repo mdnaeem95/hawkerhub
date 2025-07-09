@@ -1,4 +1,4 @@
-// apps/mobile/src/navigation/CustomerNavigator.tsx (updated)
+// apps/mobile/src/navigation/CustomerNavigator.tsx (updated with Directory)
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -14,6 +14,9 @@ import { CartScreen } from '@/screens/customer/CartScreen';
 import { MenuScreen } from '@/screens/customer/MenuScreen';
 import { PaymentScreen } from '@/screens/customer/PaymentScreen';
 import ProfileScreen from '@/screens/customer/ProfileScreen';
+import { DirectoryScreen } from '@/screens/customer/DirectoryScreen';
+import { HawkerDetailScreen } from '@/screens/customer/HawkerDetailScreen';
+import { StallDetailScreen } from '@/screens/customer/StallDetailScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type CustomerStackParamList = {
@@ -44,25 +47,34 @@ export type CustomerStackParamList = {
   };
 };
 
+export type DirectoryStackParamList = {
+  DirectoryHome: undefined;
+  HawkerDetail: { hawkerId: string };
+  StallDetail: { stallId: string; fromDirectory?: boolean };
+  DirectorySearch: { query?: string; cuisine?: string };
+};
+
 export type CustomerTabParamList = {
   Order: undefined;
+  Directory: undefined;
   Orders: undefined;
   Profile: undefined;
 };
 
 const Tab = createBottomTabNavigator<CustomerTabParamList>();
-const Stack = createStackNavigator<CustomerStackParamList>();
+const OrderStack = createStackNavigator<CustomerStackParamList>();
+const DirectoryStack = createStackNavigator<DirectoryStackParamList>();
 
 // Stack navigator for the ordering flow
 function OrderingStack() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen 
+    <OrderStack.Navigator>
+      <OrderStack.Screen 
         name="ScanTable" 
         component={ScanTableScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
+      <OrderStack.Screen 
         name="StallList" 
         component={StallListScreen}
         options={{ 
@@ -73,7 +85,7 @@ function OrderingStack() {
           headerTintColor: '#fff',
         }}
       />
-      <Stack.Screen 
+      <OrderStack.Screen 
         name="Menu" 
         component={MenuScreen}
         options={({ route }) => ({
@@ -84,7 +96,7 @@ function OrderingStack() {
           headerTintColor: '#fff',
         })}
       />
-      <Stack.Screen 
+      <OrderStack.Screen 
         name="Cart" 
         component={CartScreen}
         options={{ 
@@ -95,7 +107,7 @@ function OrderingStack() {
           headerTintColor: '#fff',
         }}
       />
-      <Stack.Screen 
+      <OrderStack.Screen 
         name="Payment" 
         component={PaymentScreen}
         options={{ 
@@ -106,7 +118,40 @@ function OrderingStack() {
           headerTintColor: '#fff',
         }}
       />
-    </Stack.Navigator>
+    </OrderStack.Navigator>
+  );
+}
+
+// Stack navigator for the directory
+function DirectoryStackNavigator() {
+  return (
+    <DirectoryStack.Navigator>
+      <DirectoryStack.Screen
+        name="DirectoryHome"
+        component={DirectoryScreen}
+        options={{
+          title: 'Explore',
+          headerStyle: {
+            backgroundColor: theme.colors.primary,
+          },
+          headerTintColor: '#fff',
+        }}
+      />
+      <DirectoryStack.Screen
+        name="HawkerDetail"
+        component={HawkerDetailScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+      <DirectoryStack.Screen
+        name="StallDetail"
+        component={StallDetailScreen}
+        options={{
+          headerShown: false,
+        }}
+      />
+    </DirectoryStack.Navigator>
   );
 }
 
@@ -121,6 +166,8 @@ export function CustomerNavigator() {
 
           if (route.name === 'Order') {
             iconName = focused ? 'qrcode-scan' : 'qrcode';
+          } else if (route.name === 'Directory') {
+            iconName = focused ? 'map-search' : 'map-search-outline';
           } else if (route.name === 'Orders') {
             iconName = focused ? 'receipt' : 'receipt';
           } else if (route.name === 'Profile') {
@@ -134,7 +181,7 @@ export function CustomerNavigator() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray[500],
         tabBarStyle: {
-          height: 40 + insets.bottom,
+          height: 60 + insets.bottom,
           paddingBottom: insets.bottom,
           paddingTop: 8,
         },
@@ -152,16 +199,23 @@ export function CustomerNavigator() {
           // Hide tab bar when in certain screens
           tabBarStyle: ((route) => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? '';
-            if (['Menu', 'Cart'].includes(routeName)) {
+            if (['Menu', 'Cart', 'Payment'].includes(routeName)) {
               return { display: 'none' };
             }
             return {
-              height: 40 + insets.bottom,
+              height: 60 + insets.bottom,
               paddingBottom: insets.bottom,
               paddingTop: 8,
             };
           })(route),
         })}
+      />
+      <Tab.Screen 
+        name="Directory" 
+        component={DirectoryStackNavigator}
+        options={{ 
+          title: 'Explore',
+        }}
       />
       <Tab.Screen 
         name="Orders" 

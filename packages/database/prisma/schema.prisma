@@ -8,14 +8,28 @@ datasource db {
 }
 
 model Hawker {
-  id        String   @id @default(cuid())
-  name      String
-  address   String
-  imageUrl  String?
-  tables    Table[]
-  stalls    Stall[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  latitude     Float
+  longitude    Float
+  address      String
+  imageUrl     String?
+  coverImage   String?
+  openingTime  String // e.g., "06:00"
+  closingTime  String // e.g., "22:00"
+  amenities    String[] // ["Parking", "WiFi", "AirCon", "Halal"]
+  tags         String[] // ["Heritage", "24Hours", "Tourist-Friendly"]
+  region       String // "Central", "North", "South", "East", "West"
+  rating       Float    @default(0)
+  totalReviews Int      @default(0)
+  isActive     Boolean  @default(true)
+  tables       Table[]
+  stalls       Stall[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([region])
+  @@index([name])
 }
 
 model Table {
@@ -34,14 +48,21 @@ model Table {
 }
 
 model Stall {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   hawkerId    String
   name        String
   description String?
   imageUrl    String?
-  qrCode      String  @unique
+  qrCode      String     @unique
   phoneNumber String
-  isActive    Boolean @default(true)
+  isActive    Boolean    @default(true)
+  cuisine     String // "Chinese", "Malay", "Indian", "Western", "Drinks"
+  specialties String[] // ["Chicken Rice", "Char Kway Teow"]
+  rating      Float      @default(0)
+  priceRange  Int // 1-3 ($ to $$$)
+  images      String[] // Multiple food images
+  reviews     Review[]
+  favorites   Favorite[]
 
   // POS Integration fields
   posType      String?
@@ -58,6 +79,43 @@ model Stall {
   updatedAt DateTime @updatedAt
 
   @@index([hawkerId])
+  @@index([cuisine])
+  @@index([rating])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  stallId    String
+  customerId String
+  rating     Int // 1-5
+  comment    String?
+  images     String[]
+  stall      Stall    @relation(fields: [stallId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([stallId, customerId])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  customerId String
+  stallId    String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  stall      Stall    @relation(fields: [stallId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, stallId])
+}
+
+model SearchHistory {
+  id         String   @id @default(cuid())
+  customerId String
+  query      String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 model StallOwner {
@@ -213,12 +271,15 @@ enum PaymentMode {
 }
 
 model Customer {
-  id          String   @id @default(cuid())
-  phoneNumber String   @unique
-  name        String
-  email       String?
-  joinedAt    DateTime @default(now())
-  orders      Order[]
+  id            String          @id @default(cuid())
+  phoneNumber   String          @unique
+  name          String
+  email         String?
+  joinedAt      DateTime        @default(now())
+  orders        Order[]
+  Review        Review[]
+  Favorite      Favorite[]
+  SearchHistory SearchHistory[]
 
   @@index([phoneNumber])
 }

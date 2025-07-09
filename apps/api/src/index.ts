@@ -14,6 +14,7 @@ import { paymentRoutes } from './modules/payments/payment.controller';
 import { notificationRoutes } from './modules/notifications/notification.controller';
 import { POSIntegrationService } from './modules/integrations/pos-adapter.service';
 import { integrationRoutes } from './modules/integrations/integration.controller';
+import { directoryRoutes } from './modules/directory/directory.controller';
 
 // Load environment variables
 dotenv.config();
@@ -99,6 +100,7 @@ async function start() {
       await fastify.register(async (fastify) => { orderRoutes(fastify, { posService });}, { prefix: '/api' });
       await fastify.register(vendorRoutes, { prefix: '/api' });
       await fastify.register(paymentRoutes, { prefix: '/api' });
+      await fastify.register(directoryRoutes, { prefix: '/api'});
       await fastify.register(notificationRoutes, { prefix: '/api' });
 
       // register integration routes
