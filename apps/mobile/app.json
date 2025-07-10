@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.hawkerhup.app",
+      "package": "com.hawkerhub.app",
       "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "permissions": [
