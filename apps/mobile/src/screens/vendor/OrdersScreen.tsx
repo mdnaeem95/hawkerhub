@@ -64,8 +64,8 @@ export const VendorOrdersScreen: React.FC = () => {
   useSocketConnection();
 
   // Real-time order updates
-  useSocket('order:new', useCallback((newOrder: Order) => {
-    console.log('New order received:', newOrder);
+  useSocket('new-order', useCallback((newOrder: Order) => {
+    console.log('[VendorOrders] New order received (new-order):', newOrder);
     setOrders(prev => [newOrder, ...prev]);
     
     // Play sound or vibrate for new order
@@ -76,6 +76,18 @@ export const VendorOrdersScreen: React.FC = () => {
       `Order #${newOrder.orderNumber} from Table ${newOrder.table.number}`,
       [{ text: 'OK' }]
     );
+  }, []));
+
+  useSocket('order:new', useCallback((newOrder: Order) => {
+    console.log('[VendorOrders] New order received (order:new):', newOrder);
+    // Check if order already exists to avoid duplicates
+    setOrders(prev => {
+      const exists = prev.some(o => o.id === newOrder.id);
+      if (!exists) {
+        return [newOrder, ...prev];
+      }
+      return prev;
+    });
   }, []));
 
   useSocket('order:updated', useCallback((updatedOrder: Order) => {

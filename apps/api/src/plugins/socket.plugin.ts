@@ -64,11 +64,24 @@ export const emitOrderUpdate = (io: Server, order: any) => {
 };
 
 export const emitNewOrder = (io: Server, order: any) => {
-  // Emit to stall vendor
+  console.log('[Socket] Emitting new order:', {
+    orderNumber: order.orderNumber,
+    stallId: order.stallId,
+    customerId: order.customerId
+  });
+  
+  // Emit to stall vendor - using the consistent event name
+  io.to(`stall:${order.stallId}`).emit('new-order', order);
+  
+  // Also emit order:new for backward compatibility
   io.to(`stall:${order.stallId}`).emit('order:new', order);
   
   // Emit to customer
   if (order.customerId) {
     io.to(`customer:${order.customerId}`).emit('order:created', order);
   }
+  
+  // Log active rooms for debugging
+  const rooms = io.sockets.adapter.rooms;
+  console.log('[Socket] Active rooms:', Array.from(rooms.keys()));
 };

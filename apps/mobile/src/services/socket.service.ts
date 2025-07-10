@@ -1,4 +1,3 @@
-// apps/mobile/src/services/socket.service.ts
 import io, { Socket } from 'socket.io-client';
 import { useAuthStore } from '@/store/authStore';
 
@@ -42,42 +41,42 @@ class SocketService {
     }
   }
 
-  private joinUserRooms() {
-    const { user, userRole } = useAuthStore.getState();
-    
-    if (!user || !this.socket) return;
+  private async joinUserRooms() {
+      const { user, userRole } = useAuthStore.getState();
+      
+      if (!user || !this.socket) return;
 
-    if (userRole === 'customer') {
-      this.socket.emit('join:customer', user.id);
-      console.log(`[Socket] Joined customer room: ${user.id}`);
-    } else if (userRole === 'vendor') {
-      // For vendor, we need to get their stall ID
-      // This assumes the vendor user object has a stallId property
-      // You might need to fetch this from the API or store it in auth
-      this.fetchVendorStallId().then(stallId => {
-        if (stallId && this.socket) {
-          this.socket.emit('join:vendor', stallId);
-          console.log(`[Socket] Joined vendor stall room: ${stallId}`);
+      if (userRole === 'customer') {
+        this.socket.emit('join:customer', user.id);
+        console.log(`[Socket] Joined customer room: ${user.id}`);
+      } else if (userRole === 'vendor') {
+        // For vendor, we need to get their stall ID
+        try {
+          const stallInfo = await this.fetchVendorStallInfo();
+          if (stallInfo?.stallId && this.socket) {
+            this.socket.emit('join:vendor', stallInfo.stallId);
+            console.log(`[Socket] Joined vendor stall room: ${stallInfo.stallId}`);
+          } else {
+            console.error('[Socket] Could not get vendor stall ID');
+          }
+        } catch (error) {
+          console.error('[Socket] Error joining vendor room:', error);
         }
-      });
-    }
+      }
   }
 
-  private async fetchVendorStallId(): Promise<string | null> {
+  private async fetchVendorStallInfo(): Promise<{ stallId: string } | null> {
     try {
-      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
-      const token = useAuthStore.getState().token; // Get auth token
+      const { api } = await import('./api');
       
-      const response = await fetch(`${API_URL}/vendor/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const response = await api.get('/vendor/profile');
       
-      const data = await response.json();
-      return data.stall?.id || null;
+      if (response.data.success && response.data.stall) {
+        return { stallId: response.data.stall.id };
+      }
+      return null;
     } catch (error) {
-      console.error('[Socket] Error fetching vendor stall ID:', error);
+      console.error('[Socket] Error fetching vendor stall info:', error);
       return null;
     }
   }
@@ -102,8 +101,13 @@ class SocketService {
     });
 
     this.socket.on('order:new', (order) => {
-      console.log('[Socket] New order for vendor:', order);
+      console.log('[Socket] New order for vendor (order:new):', order);
       this.emit('order:new', order);
+    });
+
+    this.socket.on('new-order', (order) => {
+      console.log('[Socket] New order for vendor (new-order):', order);
+      this.emit('new-order', order);
     });
   }
 

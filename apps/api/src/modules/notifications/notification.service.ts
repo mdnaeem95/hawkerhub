@@ -129,25 +129,35 @@ export class NotificationService {
 
   // Send new order notification to vendor
   async sendNewOrderNotification(order: any) {
-    const stallOwner = await prisma.stallOwner.findUnique({
-      where: { stallId: order.stallId }
-    });
+    try {
+      // First, find the stall owner
+      const stallOwner = await prisma.stallOwner.findFirst({
+        where: { stallId: order.stallId }
+      });
 
-    if (!stallOwner) return;
+      if (!stallOwner) {
+        console.log(`No stall owner found for stall ${order.stallId}`);
+        return;
+      }
 
-    await this.sendPushNotification(
-      stallOwner.id,
-      '🆕 New Order!',
-      `New order #${order.orderNumber} from Table ${order.table.number}`,
-      {
-        type: 'new_order',
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        tableNumber: order.table.number,
-        channelId: 'orders'
-      },
-      'vendor'
-    );
+      console.log(`Sending new order notification to vendor ${stallOwner.id}`);
+
+      await this.sendPushNotification(
+        stallOwner.id,
+        '🆕 New Order!',
+        `New order #${order.orderNumber} from Table ${order.table.number}`,
+        {
+          type: 'new_order',
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          tableNumber: order.table.number,
+          channelId: 'orders'
+        },
+        'vendor'
+      );
+    } catch (error) {
+      console.error('Error sending new order notification:', error);
+    }
   }
 
   // Send payment confirmation notification

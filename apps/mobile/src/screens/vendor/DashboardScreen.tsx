@@ -23,6 +23,7 @@ import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { VendorTabParamList } from '@/navigation/VendorNavigator';
+import { useSocketConnection } from '@/hooks/useSocket';
 
 type DashboardNavigationProp = BottomTabNavigationProp<VendorTabParamList, 'Dashboard'>;
 
@@ -44,6 +45,8 @@ export const DashboardScreen: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  useSocketConnection();
 
   useEffect(() => {
     fetchDashboardStats();

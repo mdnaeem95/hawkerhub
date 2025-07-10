@@ -9,13 +9,13 @@ import { api } from '@/services/api';
 import { useSocket, useSocketConnection } from '@/hooks/useSocket';
 
 // Import vendor screens
-import { DashboardScreen } from '@/screens/vendor/DashboardScreen';
 import { VendorOrdersScreen } from '@/screens/vendor/OrdersScreen';
 import ProfileScreen from '@/screens/vendor/ProfileScreen';
 import { MenuManagementScreen } from '@/screens/vendor/MenuScreen';
 import { AnalyticsScreen } from '@/screens/vendor/AnalyticsScreen';
 import { POSIntegrationScreen } from '@/screens/vendor/POSIntegrationScreen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { VendorDashboard } from '@/screens/vendor/VendorDashboard';
 
 export type VendorTabParamList = {
   Dashboard: undefined;
@@ -63,16 +63,37 @@ function VendorTabs() {
 
   // Listen for new orders via socket
   useSocket('new-order', (data) => {
+    console.log('[VendorNavigator] New order received:', data);
     setPendingOrdersCount(prev => prev + 1);
+    
+    // Refetch orders data to ensure UI is in sync
+    fetchOrdersCount();
+  });
+
+  // Also listen for the alternative event name
+  useSocket('order:new', (data) => {
+    console.log('[VendorNavigator] New order received (order:new):', data);
+    // Don't increment twice if both events fire
   });
 
   // Listen for order updates
   useSocket('order:updated', (order) => {
-    // If order moved from PENDING to another status, decrement
-    if (order.previousStatus === 'PENDING' && order.status !== 'PENDING') {
-      setPendingOrdersCount(prev => Math.max(0, prev - 1));
-    }
+    console.log('[VendorNavigator] Order updated:', order);
+    // Refetch to get accurate count
+    fetchOrdersCount();
   });
+
+  // Fetch pending orders count
+  const fetchOrdersCount = async () => {
+    try {
+      const response = await api.get('/vendor/orders/stats');
+      if (response.data.success && response.data.pendingCount !== undefined) {
+        setPendingOrdersCount(response.data.pendingCount);
+      }
+    } catch (error) {
+      console.error('[VendorNavigator] Error fetching orders count:', error);
+    }
+  };
 
   return (
     <Tab.Navigator
@@ -120,7 +141,7 @@ function VendorTabs() {
     >
       <Tab.Screen 
         name="Dashboard" 
-        component={DashboardScreen}
+        component={VendorDashboard}
         options={{ title: 'Dashboard' }}
       />
       <Tab.Screen 
