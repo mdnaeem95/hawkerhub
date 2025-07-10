@@ -53,7 +53,7 @@ export const ScanTableScreen: React.FC = () => {
   // Development bypass function
   const handleDevBypass = () => {
     // Mock hawker center data
-    const mockHawkerId = 'dev-hawker-123';
+    const mockHawkerId = 'cmcwlt3iu000kaf4bftcjw9gs';
     const mockTableNumber = 'A1';
     
     Alert.alert(

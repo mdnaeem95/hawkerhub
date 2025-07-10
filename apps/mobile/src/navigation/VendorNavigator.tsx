@@ -1,9 +1,12 @@
 // apps/mobile/src/navigation/VendorNavigator.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme } from '@/constants/theme';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/services/api';
+import { useSocket, useSocketConnection } from '@/hooks/useSocket';
 
 // Import vendor screens
 import { DashboardScreen } from '@/screens/vendor/DashboardScreen';
@@ -12,6 +15,7 @@ import ProfileScreen from '@/screens/vendor/ProfileScreen';
 import { MenuManagementScreen } from '@/screens/vendor/MenuScreen';
 import { AnalyticsScreen } from '@/screens/vendor/AnalyticsScreen';
 import { POSIntegrationScreen } from '@/screens/vendor/POSIntegrationScreen';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type VendorTabParamList = {
   Dashboard: undefined;
@@ -34,6 +38,42 @@ const Tab = createBottomTabNavigator<VendorTabParamList>();
 const Stack = createStackNavigator<VendorStackParamList>();
 
 function VendorTabs() {
+  const insets = useSafeAreaInsets();
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  
+  // Initialize socket connection
+  useSocketConnection();
+
+  // Fetch initial pending orders count
+  const { data: ordersData } = useQuery({
+    queryKey: ['vendor-pending-orders-count'],
+    queryFn: async () => {
+      const response = await api.get('/vendor/orders/stats');
+      return response.data;
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Update count when data is fetched
+  useEffect(() => {
+    if (ordersData?.pendingCount !== undefined) {
+      setPendingOrdersCount(ordersData.pendingCount);
+    }
+  }, [ordersData]);
+
+  // Listen for new orders via socket
+  useSocket('new-order', (data) => {
+    setPendingOrdersCount(prev => prev + 1);
+  });
+
+  // Listen for order updates
+  useSocket('order:updated', (order) => {
+    // If order moved from PENDING to another status, decrement
+    if (order.previousStatus === 'PENDING' && order.status !== 'PENDING') {
+      setPendingOrdersCount(prev => Math.max(0, prev - 1));
+    }
+  });
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -68,8 +108,8 @@ function VendorTabs() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray[500],
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
+          height: 52 + insets.bottom,
+          paddingBottom: insets.bottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: {
@@ -88,7 +128,7 @@ function VendorTabs() {
         component={VendorOrdersScreen}
         options={{ 
           title: 'Orders',
-          tabBarBadge: 3, // Show pending orders count
+          tabBarBadge: pendingOrdersCount > 0 ? pendingOrdersCount : undefined,
         }}
       />
       <Tab.Screen 

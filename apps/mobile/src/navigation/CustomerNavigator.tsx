@@ -181,7 +181,7 @@ export function CustomerNavigator() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.gray[500],
         tabBarStyle: {
-          height: 60 + insets.bottom,
+          height: 52 + insets.bottom,
           paddingBottom: insets.bottom,
           paddingTop: 8,
         },
@@ -203,7 +203,7 @@ export function CustomerNavigator() {
               return { display: 'none' };
             }
             return {
-              height: 60 + insets.bottom,
+              height: 52 + insets.bottom,
               paddingBottom: insets.bottom,
               paddingTop: 8,
             };

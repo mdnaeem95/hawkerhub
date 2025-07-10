@@ -65,11 +65,17 @@ class SocketService {
 
   private async fetchVendorStallId(): Promise<string | null> {
     try {
-      // You might want to store this in the auth store or fetch it
-      // For now, we'll make an API call to get vendor details
-      const response = await fetch('/api/vendor/profile');
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+      const token = useAuthStore.getState().token; // Get auth token
+      
+      const response = await fetch(`${API_URL}/vendor/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
       const data = await response.json();
-      return data.stallId || null;
+      return data.stall?.id || null;
     } catch (error) {
       console.error('[Socket] Error fetching vendor stall ID:', error);
       return null;

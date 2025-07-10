@@ -1,6 +1,4 @@
-// apps/api/src/modules/orders/orders.controller.ts
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { emitNewOrder, emitOrderUpdate } from '../../plugins/socket.plugin';
 import { NotificationService } from '../notifications/notification.service';
@@ -8,18 +6,6 @@ import { POSIntegrationService } from '../integrations/pos-adapter.service';
 
 const prisma = new PrismaClient();
 const notificationService = new NotificationService();
-
-const CreateOrderSchema = z.object({
-  tableId: z.string(),
-  stallId: z.string(),
-  paymentMode: z.enum(['CASH', 'PAYNOW', 'GRABPAY', 'PAYLAH']),
-  items: z.array(z.object({
-    menuItemId: z.string(),
-    quantity: z.number().int().positive(),
-    specialInstructions: z.string().optional(),
-  })).min(1),
-  totalAmount: z.number().positive(),
-});
 
 // Helper functions
 function calculateEstimatedReadyTime(order: any): Date {

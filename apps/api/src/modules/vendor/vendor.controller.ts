@@ -615,6 +615,53 @@ export async function vendorRoutes(fastify: FastifyInstance) {
       });
     }
   });
+
+  // get vendor order statistics
+  fastify.get('/vendor/orders/stats', {
+    preHandler: fastify.authenticate
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const vendorId = request.user?.id;
+      
+      if (!vendorId || request.user?.userType !== 'vendor') {
+        return reply.code(403).send({
+          success: false,
+          message: 'Unauthorized - vendor access only'
+        });
+      }
+
+      const vendor = await prisma.stallOwner.findUnique({
+        where: { id: vendorId },
+        include: { stall: true }
+      });
+
+      if (!vendor?.stall) {
+        return reply.code(404).send({
+          success: false,
+          message: 'Vendor stall not found'
+        });
+      }
+
+      // Count pending orders
+      const pendingCount = await prisma.order.count({
+        where: {
+          stallId: vendor.stall.id,
+          status: 'PENDING'
+        }
+      });
+
+      return reply.send({
+        success: true,
+        pendingCount
+      });
+    } catch (error) {
+      fastify.log.error(error);
+      return reply.code(500).send({
+        success: false,
+        message: 'Failed to fetch order statistics'
+      });
+    }
+  });
 }
 
 function getPopularItems(orders: any[]) {
