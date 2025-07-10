@@ -8,8 +8,10 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@fastify/jwt": "9.1.0",
+    "next": "14.2.30",
     "react": "^18.2.0",
-    "react-native": "0.73.1",
+    "react-native": "^0.73.11",
     "react-native-reanimated": "~3.6.0"
   },
   "devDependencies": {

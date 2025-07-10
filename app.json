@@ -1,3 +1,18 @@
 {
-  "expo": {}
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "c6886301-e2d2-45ea-b641-0857cffc0099"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.hawkerhub.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.hawkerhup.app"
+    }
+  }
 }
