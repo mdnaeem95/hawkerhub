@@ -316,7 +316,7 @@ export const VendorOrdersScreen: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'top']}>
       {/* Status Filters */}
       <ScrollView
         horizontal
