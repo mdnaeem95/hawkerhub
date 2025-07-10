@@ -22,15 +22,9 @@ declare module '@fastify/jwt' {
   }
 }
 
-declare module 'fastify' {
-  interface FastifyInstance {
-    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
-  }
-}
-
 export async function authModule(fastify: FastifyInstance) {
   // JWT setup
-  await fastify.register(fastifyJwt, {
+  await fastify.register(fastifyJwt as any, {
     secret: process.env.JWT_SECRET || 'your-secret-key'
   });
 

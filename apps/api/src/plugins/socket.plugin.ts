@@ -1,6 +1,6 @@
 // apps/api/src/plugins/socket.plugin.ts
 import { FastifyInstance } from 'fastify';
-import { Server } from 'socket.io';
+import { Server, Socket } from 'socket.io';
 import fastifySocketIO from 'fastify-socket.io';
 
 declare module 'fastify' {
@@ -9,8 +9,14 @@ declare module 'fastify' {
   }
 }
 
+interface CustomSocket extends Socket {
+  userId?: string;
+  role?: string;
+  stallId?: string;
+}
+
 export async function socketPlugin(fastify: FastifyInstance) {
-  await fastify.register(fastifySocketIO, {
+  await fastify.register((fastifySocketIO as any), {
     cors: {
       origin: true,
       credentials: true

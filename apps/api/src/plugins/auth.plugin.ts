@@ -20,7 +20,7 @@ declare module '@fastify/jwt' {
 
 export async function authPlugin(fastify: FastifyInstance) {
   // Register JWT plugin
-  await fastify.register(fastifyJwt, {
+  await fastify.register(fastifyJwt as any, {
     secret: process.env.JWT_SECRET || 'your-secret-key-change-this'
   });
 
