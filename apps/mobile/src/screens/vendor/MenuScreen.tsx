@@ -1,4 +1,3 @@
-// apps/mobile/src/screens/vendor/MenuScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,22 +5,17 @@ import {
   ScrollView,
   Alert,
   Image,
+  TouchableOpacity,
+  Dimensions,
 } from 'react-native';
 import {
   Text,
-  Card,
   FAB,
-  IconButton,
   Searchbar,
   Menu,
-  Divider,
-  Chip,
   Switch,
-  Portal,
-  Modal,
-  TextInput,
-  Button,
   ActivityIndicator,
+  TextInput,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -30,6 +24,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
+import { MenuItemModal } from '@/components/MenuItemModal';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface MenuItem {
   id: string;
@@ -44,6 +41,17 @@ interface MenuItem {
   isAvailable: boolean;
 }
 
+const CATEGORIES = [
+  { key: 'All', label: 'All', icon: 'food' },
+  { key: 'Mains', label: 'Mains', icon: 'food-variant' },
+  { key: 'Noodles', label: 'Noodles', icon: 'noodles' },
+  { key: 'Rice', label: 'Rice', icon: 'rice' },
+  { key: 'Snacks', label: 'Snacks', icon: 'food-apple' },
+  { key: 'Beverages', label: 'Drinks', icon: 'cup' },
+  { key: 'Desserts', label: 'Desserts', icon: 'cupcake' },
+  { key: 'Add-on', label: 'Add-ons', icon: 'plus-circle-outline' },
+];
+
 export const MenuManagementScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user } = useAuthStore();
@@ -52,12 +60,10 @@ export const MenuManagementScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [showCategoryMenu, setShowCategoryMenu] = useState(false);
-  
-  // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   
   // Form states
   const [formData, setFormData] = useState({
@@ -70,8 +76,6 @@ export const MenuManagementScreen: React.FC = () => {
     category: 'Mains',
     imageUrl: '',
   });
-
-  const categories = ['All', 'Mains', 'Noodles', 'Rice', 'Snacks', 'Beverages', 'Desserts'];
 
   useEffect(() => {
     fetchMenuItems();
@@ -99,12 +103,10 @@ export const MenuManagementScreen: React.FC = () => {
   const filterItems = () => {
     let filtered = menuItems;
     
-    // Filter by category
     if (selectedCategory !== 'All') {
       filtered = filtered.filter(item => item.category === selectedCategory);
     }
     
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -213,7 +215,6 @@ export const MenuManagementScreen: React.FC = () => {
     });
 
     if (!result.canceled) {
-      // In a real app, you would upload this to a server
       setFormData(prev => ({ ...prev, imageUrl: result.assets[0].uri }));
     }
   };
@@ -246,67 +247,85 @@ export const MenuManagementScreen: React.FC = () => {
     setShowEditModal(true);
   };
 
+  const getCategoryCount = (category: string) => {
+    if (category === 'All') return menuItems.length;
+    return menuItems.filter(item => item.category === category).length;
+  };
+
   const renderMenuItem = (item: MenuItem) => (
-    <Card key={item.id} style={styles.menuCard}>
-      <Card.Content>
-        <View style={styles.menuItem}>
-          {item.imageUrl && (
-            <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+    <View key={item.id} style={styles.menuCard}>
+      <View style={styles.cardContent}>
+        {/* Item Image */}
+        {item.imageUrl ? (
+          <Image source={{ uri: item.imageUrl }} style={styles.itemImage} />
+        ) : (
+          <View style={[styles.itemImage, styles.imagePlaceholder]}>
+            <Icon name="image-off" size={24} color={theme.colors.gray[400]} />
+          </View>
+        )}
+        
+        {/* Item Details */}
+        <View style={styles.itemDetails}>
+          <View style={styles.itemHeader}>
+            <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
+            <Switch
+              value={item.isAvailable}
+              onValueChange={() => toggleItemAvailability(item.id, item.isAvailable)}
+              color={theme.colors.primary}
+              style={styles.availableSwitch}
+            />
+          </View>
+          
+          {item.description && (
+            <Text style={styles.itemDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
           )}
-          <View style={styles.itemDetails}>
-            <View style={styles.itemHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                {item.description && (
-                  <Text style={styles.itemDescription} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                )}
-              </View>
-              <Switch
-                value={item.isAvailable}
-                onValueChange={() => toggleItemAvailability(item.id, item.isAvailable)}
-                color={theme.colors.primary}
-              />
+          
+          <View style={styles.itemFooter}>
+            <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryText}>{item.category}</Text>
             </View>
-            <View style={styles.itemFooter}>
-              <Text style={styles.itemPrice}>${item.price.toFixed(2)}</Text>
-              <Chip compact style={styles.categoryChip}>
-                {item.category}
-              </Chip>
-              <View style={styles.itemActions}>
-                <IconButton
-                  icon="pencil"
-                  size={20}
-                  onPress={() => openEditModal(item)}
-                />
-                <IconButton
-                  icon="delete"
-                  size={20}
-                  onPress={() => handleDeleteItem(item)}
-                />
-              </View>
+            
+            <View style={styles.itemActions}>
+              <TouchableOpacity
+                onPress={() => openEditModal(item)}
+                style={styles.actionButton}
+              >
+                <Icon name="pencil" size={20} color={theme.colors.gray[600]} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDeleteItem(item)}
+                style={styles.actionButton}
+              >
+                <Icon name="delete" size={20} color={theme.colors.gray[600]} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
-      </Card.Content>
-    </Card>
+      </View>
+    </View>
   );
 
   const renderItemForm = () => (
-    <ScrollView style={styles.formContainer}>
-      <Button
-        mode="outlined"
-        onPress={pickImage}
-        icon="camera"
-        style={styles.imageButton}
-      >
-        {formData.imageUrl ? 'Change Image' : 'Add Image'}
-      </Button>
-      
-      {formData.imageUrl && (
-        <Image source={{ uri: formData.imageUrl }} style={styles.previewImage} />
-      )}
+    <ScrollView 
+      style={styles.formContainer} 
+      showsVerticalScrollIndicator={true}
+      contentContainerStyle={styles.formContentContainer}
+      keyboardShouldPersistTaps="handled"
+    >
+      {/* Image Section */}
+      <TouchableOpacity onPress={pickImage} style={styles.imageSection}>
+        {formData.imageUrl ? (
+          <Image source={{ uri: formData.imageUrl }} style={styles.formImage} />
+        ) : (
+          <View style={[styles.imagePlaceholder, styles.formImage]}>
+            <Icon name="camera-plus" size={32} color={theme.colors.gray[400]} />
+            <Text style={styles.imageText}>Add Photo</Text>
+          </View>
+        )}
+      </TouchableOpacity>
 
       <TextInput
         label="Item Name *"
@@ -314,30 +333,8 @@ export const MenuManagementScreen: React.FC = () => {
         onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
         mode="outlined"
         style={styles.input}
-      />
-
-      <TextInput
-        label="Chinese Name"
-        value={formData.nameZh}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, nameZh: text }))}
-        mode="outlined"
-        style={styles.input}
-      />
-
-      <TextInput
-        label="Malay Name"
-        value={formData.nameMy}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, nameMy: text }))}
-        mode="outlined"
-        style={styles.input}
-      />
-
-      <TextInput
-        label="Tamil Name"
-        value={formData.nameTa}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, nameTa: text }))}
-        mode="outlined"
-        style={styles.input}
+        outlineColor={theme.colors.gray[300]}
+        activeOutlineColor={theme.colors.primary}
       />
 
       <TextInput
@@ -348,42 +345,70 @@ export const MenuManagementScreen: React.FC = () => {
         multiline
         numberOfLines={3}
         style={styles.input}
+        outlineColor={theme.colors.gray[300]}
+        activeOutlineColor={theme.colors.primary}
       />
 
-      <TextInput
-        label="Price *"
-        value={formData.price}
-        onChangeText={(text) => setFormData(prev => ({ ...prev, price: text }))}
-        mode="outlined"
-        keyboardType="decimal-pad"
-        left={<TextInput.Affix text="$" />}
-        style={styles.input}
-      />
+      <View style={styles.priceRow}>
+        <TextInput
+          label="Price *"
+          value={formData.price}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, price: text }))}
+          mode="outlined"
+          keyboardType="decimal-pad"
+          left={<TextInput.Affix text="$" />}
+          style={[styles.input, styles.priceInput]}
+          outlineColor={theme.colors.gray[300]}
+          activeOutlineColor={theme.colors.primary}
+        />
 
-      <Menu
-        visible={showCategoryMenu}
-        onDismiss={() => setShowCategoryMenu(false)}
-        anchor={
-          <Button
-            mode="outlined"
-            onPress={() => setShowCategoryMenu(true)}
-            style={styles.input}
-          >
-            Category: {formData.category}
-          </Button>
-        }
-      >
-        {categories.slice(1).map(cat => (
-          <Menu.Item
-            key={cat}
-            onPress={() => {
-              setFormData(prev => ({ ...prev, category: cat }));
-              setShowCategoryMenu(false);
-            }}
-            title={cat}
-          />
-        ))}
-      </Menu>
+        <TouchableOpacity
+          style={styles.categorySelector}
+          onPress={() => setShowCategoryDropdown(true)}
+        >
+          <Text style={styles.categorySelectorLabel}>Category</Text>
+          <Text style={styles.categorySelectorValue}>{formData.category}</Text>
+          <Icon name="chevron-down" size={20} color={theme.colors.gray[600]} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Language Names Section */}
+      <View style={styles.languageSection}>
+        <Text style={styles.sectionTitle}>Multi-language Names (Optional)</Text>
+        
+        <TextInput
+          label="Chinese Name 中文"
+          value={formData.nameZh}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, nameZh: text }))}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.gray[300]}
+          activeOutlineColor={theme.colors.primary}
+        />
+
+        <TextInput
+          label="Malay Name"
+          value={formData.nameMy}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, nameMy: text }))}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.gray[300]}
+          activeOutlineColor={theme.colors.primary}
+        />
+
+        <TextInput
+          label="Tamil Name தமிழ்"
+          value={formData.nameTa}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, nameTa: text }))}
+          mode="outlined"
+          style={styles.input}
+          outlineColor={theme.colors.gray[300]}
+          activeOutlineColor={theme.colors.primary}
+        />
+      </View>
+
+      {/* Extra padding at bottom */}
+      <View style={{ height: 20 }} />
     </ScrollView>
   );
 
@@ -399,111 +424,118 @@ export const MenuManagementScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'top']}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Menu Management</Text>
-        <Chip icon="food" style={styles.itemCount}>
-          {menuItems.length} items
-        </Chip>
+        <View style={styles.itemCountBadge}>
+          <Icon name="food" size={16} color="white" />
+          <Text style={styles.itemCountText}>{menuItems.length} items</Text>
+        </View>
       </View>
 
-      <Searchbar
-        placeholder="Search menu items..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        style={styles.searchBar}
-      />
+      {/* Search Bar */}
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search menu items..."
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+          style={styles.searchBar}
+          inputStyle={styles.searchInput}
+        />
+      </View>
 
+      {/* Category Filter */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.categoryFilter}
+        style={styles.categoryScroll}
+        contentContainerStyle={styles.categoryContainer}
       >
-        {categories.map(category => (
-          <Chip
-            key={category}
-            selected={selectedCategory === category}
-            onPress={() => setSelectedCategory(category)}
-            style={styles.categoryChip}
-          >
-            {category}
-          </Chip>
-        ))}
+        {CATEGORIES.map(category => {
+          const isSelected = selectedCategory === category.key;
+          const count = getCategoryCount(category.key);
+          
+          return (
+            <TouchableOpacity
+              key={category.key}
+              style={[styles.categoryChip, isSelected && styles.categoryChipSelected]}
+              onPress={() => setSelectedCategory(category.key)}
+              activeOpacity={0.7}
+            >
+              <Icon 
+                name={category.icon} 
+                size={16} 
+                color={isSelected ? theme.colors.primary : theme.colors.gray[600]} 
+              />
+              <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
+                {category.label}
+              </Text>
+              {count > 0 && (
+                <Text style={[styles.categoryCount, isSelected && styles.categoryCountSelected]}>
+                  {count}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
+      {/* Menu Items List */}
       <ScrollView 
         style={styles.menuList}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.menuListContent}
       >
         {filteredItems.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="food-off" size={64} color={theme.colors.gray[300]} />
-            <Text style={styles.emptyText}>No menu items found</Text>
+            <Text style={styles.emptyTitle}>No items found</Text>
+            <Text style={styles.emptyText}>
+              {searchQuery ? 'Try a different search' : 'Add your first menu item'}
+            </Text>
           </View>
         ) : (
           filteredItems.map(renderMenuItem)
         )}
       </ScrollView>
 
+      {/* FAB */}
       <FAB
         icon="plus"
         style={styles.fab}
         onPress={() => setShowAddModal(true)}
+        color="white"
       />
 
       {/* Add Item Modal */}
-      <Portal>
-        <Modal
-          visible={showAddModal}
-          onDismiss={() => {
-            setShowAddModal(false);
-            resetForm();
-          }}
-          contentContainerStyle={styles.modalContent}
-        >
-          <Text style={styles.modalTitle}>Add New Item</Text>
-          {renderItemForm()}
-          <View style={styles.modalActions}>
-            <Button onPress={() => {
-              setShowAddModal(false);
-              resetForm();
-            }}>
-              Cancel
-            </Button>
-            <Button mode="contained" onPress={handleAddItem}>
-              Add Item
-            </Button>
-          </View>
-        </Modal>
-      </Portal>
+      <MenuItemModal
+        visible={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          resetForm();
+        }}
+        onSave={handleAddItem}
+        title="Add New Item"
+        formData={formData}
+        setFormData={setFormData}
+        isEdit={false}
+      />
 
       {/* Edit Item Modal */}
-      <Portal>
-        <Modal
-          visible={showEditModal}
-          onDismiss={() => {
-            setShowEditModal(false);
-            setEditingItem(null);
-            resetForm();
-          }}
-          contentContainerStyle={styles.modalContent}
-        >
-          <Text style={styles.modalTitle}>Edit Item</Text>
-          {renderItemForm()}
-          <View style={styles.modalActions}>
-            <Button onPress={() => {
-              setShowEditModal(false);
-              setEditingItem(null);
-              resetForm();
-            }}>
-              Cancel
-            </Button>
-            <Button mode="contained" onPress={handleEditItem}>
-              Save Changes
-            </Button>
-          </View>
-        </Modal>
-      </Portal>
+      <MenuItemModal
+        visible={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingItem(null);
+          resetForm();
+        }}
+        onSave={handleEditItem}
+        title="Edit Item"
+        formData={formData}
+        setFormData={setFormData}
+        isEdit={true}
+      />
     </SafeAreaView>
   );
 };
@@ -523,46 +555,127 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.gray[600],
   },
+  
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '700',
     color: theme.colors.gray[900],
   },
-  itemCount: {
+  itemCountBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: theme.colors.primary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  itemCountText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  // Search
+  searchContainer: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.sm,
   },
   searchBar: {
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    elevation: 0,
+    backgroundColor: theme.colors.gray[100],
+    borderRadius: 12,
   },
-  categoryFilter: {
+  searchInput: {
+    fontSize: 14,
+  },
+  
+  // Category Filter
+  categoryScroll: {
+    maxHeight: 50,
+  },
+  categoryContainer: {
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.md,
+    gap: spacing.xs,
   },
   categoryChip: {
-    marginRight: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: 20,
+    backgroundColor: 'white',
+    marginRight: spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.gray[200],
+    gap: 6,
   },
+  categoryChipSelected: {
+    backgroundColor: theme.colors.primary + '15',
+    borderColor: theme.colors.primary,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    color: theme.colors.gray[700],
+    fontWeight: '500',
+  },
+  categoryLabelSelected: {
+    color: theme.colors.primary,
+    fontWeight: '600',
+  },
+  categoryCount: {
+    fontSize: 12,
+    color: theme.colors.gray[500],
+    marginLeft: 2,
+  },
+  categoryCountSelected: {
+    color: theme.colors.primary,
+  },
+  
+  // Menu List
   menuList: {
     flex: 1,
+    marginTop: spacing.md,
+  },
+  menuListContent: {
     paddingHorizontal: spacing.lg,
+    paddingBottom: 100,
   },
+  
+  // Menu Card
   menuCard: {
-    marginBottom: spacing.md,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  menuItem: {
+  cardContent: {
     flexDirection: 'row',
+    padding: spacing.md,
   },
   itemImage: {
-    width: 80,
-    height: 80,
+    width: 70,
+    height: 70,
     borderRadius: 8,
     marginRight: spacing.md,
+  },
+  imagePlaceholder: {
+    backgroundColor: theme.colors.gray[100],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   itemDetails: {
     flex: 1,
@@ -570,42 +683,73 @@ const styles = StyleSheet.create({
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
+    alignItems: 'center',
+    marginBottom: 4,
   },
   itemName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: theme.colors.gray[900],
+    flex: 1,
+    marginRight: spacing.sm,
+  },
+  availableSwitch: {
+    transform: [{ scale: 0.8 }],
   },
   itemDescription: {
-    fontSize: 14,
+    fontSize: 13,
     color: theme.colors.gray[600],
-    marginTop: 4,
+    marginBottom: spacing.xs,
+    lineHeight: 18,
   },
   itemFooter: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: spacing.xs,
   },
   itemPrice: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: theme.colors.primary,
-    marginRight: spacing.md,
+  },
+  categoryTag: {
+    backgroundColor: theme.colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: spacing.sm,
+  },
+  categoryText: {
+    fontSize: 11,
+    color: theme.colors.gray[600],
+    fontWeight: '500',
   },
   itemActions: {
     flexDirection: 'row',
     marginLeft: 'auto',
   },
+  actionButton: {
+    padding: spacing.xs,
+  },
+  
+  // Empty State
   emptyState: {
     alignItems: 'center',
-    paddingVertical: spacing.xl * 2,
+    paddingVertical: spacing.xl * 3,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: theme.colors.gray[800],
+    marginTop: spacing.lg,
   },
   emptyText: {
-    marginTop: spacing.md,
-    fontSize: 16,
+    fontSize: 14,
     color: theme.colors.gray[500],
+    marginTop: spacing.xs,
   },
+  
+  // FAB
   fab: {
     position: 'absolute',
     margin: 16,
@@ -613,38 +757,142 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: theme.colors.primary,
   },
+  
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalKeyboardAvoidingView: {
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '85%',
+  },
   modalContent: {
     backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 8,
-    maxHeight: '80%',
+    borderRadius: 16,
+    maxHeight: '100%',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.gray[200],
+    backgroundColor: 'white',
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    padding: 20,
-    paddingBottom: 10,
+    fontWeight: '700',
+    color: theme.colors.gray[900],
   },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  modalBody: {
+    flex: 1,
+    minHeight: 200,
+    maxHeight: 400,
+  },
+  
+  // Form
   formContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  formContentContainer: {
+    paddingBottom: spacing.xl,
+  },
+  imageSection: {
+    alignSelf: 'center',
+    marginBottom: spacing.lg,
+    width: 120,
+    height: 120,
+  },
+  formImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 12,
+  },
+  imageText: {
+    fontSize: 14,
+    color: theme.colors.gray[600],
+    marginTop: spacing.xs,
   },
   input: {
     marginBottom: spacing.md,
+    backgroundColor: 'white',
   },
-  imageButton: {
+  priceRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  previewImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 8,
-    marginBottom: spacing.md,
+  priceInput: {
+    flex: 1,
   },
+  categorySelector: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: theme.colors.gray[400],
+    borderRadius: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 14,
+    backgroundColor: 'white',
+  },
+  categorySelectorLabel: {
+    fontSize: 12,
+    color: theme.colors.gray[600],
+    position: 'absolute',
+    top: -8,
+    left: 12,
+    backgroundColor: 'white',
+    paddingHorizontal: 4,
+  },
+  categorySelectorValue: {
+    fontSize: 16,
+    color: theme.colors.gray[800],
+  },
+  languageSection: {
+    marginTop: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.gray[700],
+    marginBottom: spacing.sm,
+  },
+  dropdownMenu: {
+    marginTop: 40,
+  },
+  
+  // Modal Actions
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    padding: 20,
-    paddingTop: 10,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.lg,
     gap: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.gray[200],
+  },
+  cancelButton: {
+    flex: 1,
+  },
+  saveButton: {
+    flex: 2,
   },
 });

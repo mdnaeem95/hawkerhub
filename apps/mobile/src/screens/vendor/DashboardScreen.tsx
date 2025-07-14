@@ -108,7 +108,7 @@ export const DashboardScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -300,7 +300,6 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
   },
   quickAction: {
     flex: 1,
@@ -311,9 +310,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
   },
   quickActionLabel: {
-    fontSize: 12,
+    fontSize: 10,
     color: theme.colors.gray[700],
     marginTop: 4,
+    textAlign: 'center'
   },
   popularCard: {
     marginHorizontal: spacing.lg,

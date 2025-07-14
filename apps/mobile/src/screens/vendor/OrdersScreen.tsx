@@ -1,11 +1,14 @@
-// apps/mobile/src/screens/vendor/VendorOrdersScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   RefreshControl,
   Alert,
+  Animated,
+  TouchableOpacity,
+  Dimensions,
+  Vibration,
 } from 'react-native';
 import {
   Text,
@@ -13,7 +16,10 @@ import {
   Chip,
   Button,
   ActivityIndicator,
-  Divider,
+  Badge,
+  IconButton,
+  Portal,
+  Modal,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,6 +27,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { theme, spacing } from '@/constants/theme';
 import { api } from '@/services/api';
 import { useSocket, useSocketConnection } from '@/hooks/useSocket';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface OrderItem {
   id: string;
@@ -54,44 +62,55 @@ interface Order {
   };
 }
 
+// Tab configuration
+const TABS = [
+  { key: 'PENDING', label: 'New', icon: 'bell-ring', color: theme.colors.warning },
+  { key: 'PREPARING', label: 'Preparing', icon: 'chef-hat', color: theme.colors.info },
+  { key: 'READY', label: 'Ready', icon: 'check-circle', color: theme.colors.success },
+  { key: 'HISTORY', label: 'History', icon: 'history', color: theme.colors.gray[600] },
+];
+
 export const VendorOrdersScreen: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [activeTab, setActiveTab] = useState('PENDING');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
 
   // Initialize socket connection
   useSocketConnection();
 
-  // Real-time order updates
+  // Real-time order updates with animation
   useSocket('new-order', useCallback((newOrder: Order) => {
-    console.log('[VendorOrders] New order received (new-order):', newOrder);
+    console.log('[VendorOrders] New order received:', newOrder);
     setOrders(prev => [newOrder, ...prev]);
     
-    // Play sound or vibrate for new order
-    // Vibration.vibrate();
+    // Vibrate and animate
+    Vibration.vibrate([0, 200, 100, 200]);
     
-    Alert.alert(
-      '🆕 New Order!',
-      `Order #${newOrder.orderNumber} from Table ${newOrder.table.number}`,
-      [{ text: 'OK' }]
-    );
-  }, []));
-
-  useSocket('order:new', useCallback((newOrder: Order) => {
-    console.log('[VendorOrders] New order received (order:new):', newOrder);
-    // Check if order already exists to avoid duplicates
-    setOrders(prev => {
-      const exists = prev.some(o => o.id === newOrder.id);
-      if (!exists) {
-        return [newOrder, ...prev];
-      }
-      return prev;
-    });
+    // Animate new order entry
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Auto-switch to pending tab for new orders
+    setActiveTab('PENDING');
   }, []));
 
   useSocket('order:updated', useCallback((updatedOrder: Order) => {
-    console.log('Order updated:', updatedOrder);
     setOrders(prev => prev.map(order => 
       order.id === updatedOrder.id ? updatedOrder : order
     ));
@@ -106,11 +125,9 @@ export const VendorOrdersScreen: React.FC = () => {
       
       if (response.data.success) {
         setOrders(response.data.orders);
-        console.log(`Fetched ${response.data.orders.length} vendor orders`);
       }
     } catch (error: any) {
       console.error('Error fetching vendor orders:', error);
-      console.error('Error details:', error.response?.data);
       
       if (error.response?.status === 403) {
         Alert.alert(
@@ -136,164 +153,398 @@ export const VendorOrdersScreen: React.FC = () => {
     fetchOrders(false);
   };
 
-  // Update order status
-  const updateOrderStatus = async (orderId: string, status: string) => {
+  // Quick action handlers
+  const handleQuickAccept = async (order: Order) => {
     try {
-      console.log('Updating order status:', { orderId, status });
-      
-      const response = await api.patch(`/orders/${orderId}/status`, { status });
-      
-      console.log('Update response:', response.data);
+      const response = await api.patch(`/orders/${order.id}/status`, { 
+        status: 'PREPARING' 
+      });
       
       if (response.data.success) {
-        Alert.alert('Success', 'Order status updated successfully!');
+        // Play success sound
+        Vibration.vibrate(100);
         
-        // Update local state immediately
-        setOrders(prev => prev.map(order => 
-          order.id === orderId 
-            ? { ...order, status: status as Order['status'] }
-            : order
+        setOrders(prev => prev.map(o => 
+          o.id === order.id ? { ...o, status: 'PREPARING' } : o
         ));
       }
     } catch (error: any) {
-      console.error('Error updating order status:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-      
-      Alert.alert(
-        'Error', 
-        error.response?.data?.message || 'Failed to update order status'
-      );
+      Alert.alert('Error', 'Failed to accept order');
     }
   };
 
-  // Filter orders by status
+  const handleQuickReady = async (order: Order) => {
+    try {
+      const response = await api.patch(`/orders/${order.id}/status`, { 
+        status: 'READY' 
+      });
+      
+      if (response.data.success) {
+        Vibration.vibrate(100);
+        
+        setOrders(prev => prev.map(o => 
+          o.id === order.id ? { ...o, status: 'READY' } : o
+        ));
+      }
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to mark order as ready');
+    }
+  };
+
+  const handleQuickComplete = async (order: Order) => {
+    try {
+      const response = await api.patch(`/orders/${order.id}/status`, { 
+        status: 'COMPLETED' 
+      });
+      
+      if (response.data.success) {
+        Vibration.vibrate(100);
+        
+        setOrders(prev => prev.map(o => 
+          o.id === order.id ? { ...o, status: 'COMPLETED' } : o
+        ));
+      }
+    } catch (error: any) {
+      Alert.alert('Error', 'Failed to complete order');
+    }
+  };
+
+  const handleRejectOrder = async (order: Order) => {
+    Alert.alert(
+      'Reject Order',
+      'Are you sure you want to reject this order?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await api.patch(`/orders/${order.id}/status`, { 
+                status: 'CANCELLED' 
+              });
+              
+              if (response.data.success) {
+                setOrders(prev => prev.map(o => 
+                  o.id === order.id ? { ...o, status: 'CANCELLED' } : o
+                ));
+                setModalVisible(false);
+              }
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reject order');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Filter orders
   const filteredOrders = orders.filter(order => {
-    if (selectedStatus === 'ALL') return true;
-    return order.status === selectedStatus;
+    if (activeTab === 'HISTORY') {
+      return ['COMPLETED', 'CANCELLED'].includes(order.status);
+    }
+    return order.status === activeTab;
   });
 
-  const getStatusColor = (status: Order['status']) => {
-    switch (status) {
-      case 'PENDING': return theme.colors.warning;
-      case 'PREPARING': return theme.colors.info;
-      case 'READY': return theme.colors.success;
-      case 'COMPLETED': return theme.colors.gray[500];
-      case 'CANCELLED': return theme.colors.error;
-      default: return theme.colors.gray[500];
+  // Get order counts for badges
+  const getOrderCount = (status: string) => {
+    if (status === 'HISTORY') {
+      return orders.filter(o => ['COMPLETED', 'CANCELLED'].includes(o.status)).length;
     }
+    return orders.filter(o => o.status === status).length;
   };
 
-  const StatusFilter = ({ status, label, count }: any) => (
-    <Chip
-      selected={selectedStatus === status}
-      onPress={() => setSelectedStatus(status)}
-      style={styles.filterChip}
-      mode="outlined"
-    >
-      {label} {count > 0 && `(${count})`}
-    </Chip>
-  );
+  // Calculate time elapsed
+  const getTimeElapsed = (createdAt: string) => {
+    const now = new Date();
+    const orderTime = new Date(createdAt);
+    const diffMinutes = Math.floor((now.getTime() - orderTime.getTime()) / 60000);
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    const hours = Math.floor(diffMinutes / 60);
+    return `${hours}h ${diffMinutes % 60}m ago`;
+  };
 
-  const renderOrderCard = (order: Order) => (
-    <Card key={order.id} style={styles.orderCard} mode="elevated">
-      <Card.Content>
-        {/* Order Header */}
-        <View style={styles.orderHeader}>
-          <View>
-            <Text style={styles.orderNumber}>Order #{order.orderNumber}</Text>
-            <Text style={styles.tableNumber}>Table {order.table.number}</Text>
-            <Text style={styles.orderTime}>
-              {new Date(order.createdAt).toLocaleTimeString()}
-            </Text>
-          </View>
-          <View style={styles.orderHeaderRight}>
-            <Chip
-              mode="flat"
-              style={[styles.statusChip, { backgroundColor: getStatusColor(order.status) }]}
-              textStyle={styles.statusText}
-            >
-              {order.status}
-            </Chip>
-            <Text style={styles.totalAmount}>${order.totalAmount.toFixed(2)}</Text>
-          </View>
-        </View>
-
-        <Divider style={styles.divider} />
-
-        {/* Order Items */}
-        <View style={styles.itemsContainer}>
-          {order.items.map((item) => (
-            <View key={item.id} style={styles.orderItem}>
-              <Text style={styles.itemQuantity}>{item.quantity}x</Text>
-              <View style={styles.itemDetails}>
-                <Text style={styles.itemName}>{item.menuItem.name}</Text>
-                {item.specialInstructions && (
-                  <Text style={styles.specialInstructions}>
-                    Note: {item.specialInstructions}
-                  </Text>
-                )}
+  // Render compact order card
+  const renderOrderCard = (order: Order) => {
+    const isPending = order.status === 'PENDING';
+    const isPreparing = order.status === 'PREPARING';
+    const isReady = order.status === 'READY';
+    const isHistory = ['COMPLETED', 'CANCELLED'].includes(order.status);
+    
+    return (
+      <Animated.View
+        key={order.id}
+        style={[
+          styles.orderCard,
+          isPending && styles.pendingCard,
+          {
+            opacity: isPending ? fadeAnim : 1,
+            transform: [{ translateY: isPending ? slideAnim : 0 }],
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => {
+            setSelectedOrder(order);
+            setModalVisible(true);
+          }}
+          activeOpacity={0.7}
+        >
+          {/* Order Header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.orderInfo}>
+              <View style={styles.orderNumberRow}>
+                <Text style={styles.orderNumber}>#{order.orderNumber}</Text>
+                <View style={styles.tableChip}>
+                  <Icon name="table-furniture" size={14} color={theme.colors.gray[600]} />
+                  <Text style={styles.tableText}>{order.table.number}</Text>
+                </View>
               </View>
-              <Text style={styles.itemPrice}>
-                ${(item.price * item.quantity).toFixed(2)}
-              </Text>
+              <Text style={styles.timeText}>{getTimeElapsed(order.createdAt)}</Text>
             </View>
-          ))}
-        </View>
+            <Text style={styles.priceText}>${order.totalAmount.toFixed(2)}</Text>
+          </View>
 
-        <Divider style={styles.divider} />
+          {/* Items Summary */}
+          <View style={styles.itemsSummary}>
+            {order.items.slice(0, 2).map((item, index) => (
+              <Text key={item.id} style={styles.itemText} numberOfLines={1}>
+                {item.quantity}x {item.menuItem.name}
+              </Text>
+            ))}
+            {order.items.length > 2 && (
+              <Text style={styles.moreItemsText}>
+                +{order.items.length - 2} more items
+              </Text>
+            )}
+          </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actions}>
-          {order.status === 'PENDING' && (
-            <>
-              <Button
-                mode="outlined"
-                onPress={() => updateOrderStatus(order.id, 'CANCELLED')}
-                style={styles.actionButton}
-                textColor={theme.colors.error}
+          {/* Quick Actions */}
+          {!isHistory && (
+            <View style={styles.quickActions}>
+              {isPending && (
+                <>
+                  <Button
+                    mode="outlined"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleRejectOrder(order);
+                    }}
+                    style={styles.rejectButton}
+                    labelStyle={styles.rejectButtonText}
+                    compact
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    mode="contained"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleQuickAccept(order);
+                    }}
+                    style={styles.acceptButton}
+                    labelStyle={styles.acceptButtonText}
+                    icon="check"
+                    compact
+                  >
+                    Accept
+                  </Button>
+                </>
+              )}
+              
+              {isPreparing && (
+                <Button
+                  mode="contained"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleQuickReady(order);
+                  }}
+                  style={styles.readyButton}
+                  labelStyle={styles.actionButtonText}
+                  icon="check-all"
+                  compact
+                >
+                  Mark Ready
+                </Button>
+              )}
+              
+              {isReady && (
+                <Button
+                  mode="contained"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleQuickComplete(order);
+                  }}
+                  style={styles.completeButton}
+                  labelStyle={styles.actionButtonText}
+                  icon="check-circle"
+                  compact
+                >
+                  Complete
+                </Button>
+              )}
+            </View>
+          )}
+          
+          {isHistory && (
+            <View style={styles.historyStatus}>
+              <Chip
+                mode="flat"
+                style={[
+                  styles.statusChip,
+                  order.status === 'COMPLETED' ? styles.completedChip : styles.cancelledChip
+                ]}
+                textStyle={styles.statusChipText}
               >
-                Reject
-              </Button>
-              <Button
-                mode="contained"
-                onPress={() => updateOrderStatus(order.id, 'PREPARING')}
-                style={styles.actionButton}
+                {order.status}
+              </Chip>
+            </View>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  // Render order detail modal
+  const renderOrderModal = () => (
+    <Portal>
+      <Modal
+        visible={modalVisible}
+        onDismiss={() => setModalVisible(false)}
+        contentContainerStyle={styles.modalContent}
+        dismissable={true}
+        dismissableBackButton={true}
+      >
+        {selectedOrder && (
+          <>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderLeft}>
+                <Text style={styles.modalTitle}>Order #{selectedOrder.orderNumber}</Text>
+                <Text style={styles.modalSubtitle}>Table {selectedOrder.table.number}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setModalVisible(false)}
+                style={styles.closeButton}
               >
-                Accept Order
-              </Button>
-            </>
-          )}
-          
-          {order.status === 'PREPARING' && (
-            <Button
-              mode="contained"
-              onPress={() => updateOrderStatus(order.id, 'READY')}
-              style={[styles.actionButton, styles.fullWidthButton]}
-              buttonColor={theme.colors.success}
+                <Icon name="close" size={24} color={theme.colors.gray[600]} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={false}
             >
-              Mark as Ready
-            </Button>
-          )}
-          
-          {order.status === 'READY' && (
-            <Button
-              mode="contained"
-              onPress={() => updateOrderStatus(order.id, 'COMPLETED')}
-              style={[styles.actionButton, styles.fullWidthButton]}
-            >
-              Complete Order
-            </Button>
-          )}
-          
-          {['COMPLETED', 'CANCELLED'].includes(order.status) && (
-            <Text style={styles.completedText}>
-              {order.status === 'COMPLETED' ? 'Order completed' : 'Order cancelled'}
-            </Text>
-          )}
-        </View>
-      </Card.Content>
-    </Card>
+              {/* Order Items Detail */}
+              <View style={styles.itemsDetail}>
+                <Text style={styles.sectionTitle}>Order Items</Text>
+                {selectedOrder.items.map((item) => (
+                  <View key={item.id} style={styles.itemDetail}>
+                    <View style={styles.itemDetailLeft}>
+                      <Text style={styles.itemQuantityDetail}>{item.quantity}x</Text>
+                      <View style={styles.itemInfo}>
+                        <Text style={styles.itemNameDetail}>{item.menuItem.name}</Text>
+                        {item.specialInstructions && (
+                          <Text style={styles.specialNote}>
+                            Note: {item.specialInstructions}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <Text style={styles.itemPriceDetail}>
+                      ${(item.price * item.quantity).toFixed(2)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+
+              {/* Order Summary */}
+              <View style={styles.orderSummarySection}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Payment Method</Text>
+                  <Text style={styles.summaryValue}>{selectedOrder.paymentMode}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Order Time</Text>
+                  <Text style={styles.summaryValue}>
+                    {new Date(selectedOrder.createdAt).toLocaleTimeString([], { 
+                      hour: 'numeric', 
+                      minute: '2-digit',
+                      hour12: true 
+                    })}
+                  </Text>
+                </View>
+                <View style={[styles.summaryRow, styles.totalRow]}>
+                  <Text style={styles.totalLabel}>Total Amount</Text>
+                  <Text style={styles.totalValue}>${selectedOrder.totalAmount.toFixed(2)}</Text>
+                </View>
+              </View>
+
+              {/* Action Buttons for Modal */}
+              {!['COMPLETED', 'CANCELLED'].includes(selectedOrder.status) && (
+                <View style={styles.modalActions}>
+                  {selectedOrder.status === 'PENDING' && (
+                    <>
+                      <Button
+                        mode="outlined"
+                        onPress={() => {
+                          handleRejectOrder(selectedOrder);
+                        }}
+                        style={styles.modalRejectButton}
+                        labelStyle={styles.rejectButtonText}
+                      >
+                        Reject Order
+                      </Button>
+                      <Button
+                        mode="contained"
+                        onPress={() => {
+                          handleQuickAccept(selectedOrder);
+                          setModalVisible(false);
+                        }}
+                        style={styles.modalAcceptButton}
+                        labelStyle={styles.acceptButtonText}
+                      >
+                        Accept Order
+                      </Button>
+                    </>
+                  )}
+                  
+                  {selectedOrder.status === 'PREPARING' && (
+                    <Button
+                      mode="contained"
+                      onPress={() => {
+                        handleQuickReady(selectedOrder);
+                        setModalVisible(false);
+                      }}
+                      style={styles.modalFullButton}
+                      buttonColor={theme.colors.info}
+                    >
+                      Mark as Ready
+                    </Button>
+                  )}
+                  
+                  {selectedOrder.status === 'READY' && (
+                    <Button
+                      mode="contained"
+                      onPress={() => {
+                        handleQuickComplete(selectedOrder);
+                        setModalVisible(false);
+                      }}
+                      style={styles.modalFullButton}
+                      buttonColor={theme.colors.success}
+                    >
+                      Complete Order
+                    </Button>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+          </>
+        )}
+      </Modal>
+    </Portal>
   );
 
   if (loading) {
@@ -307,28 +558,43 @@ export const VendorOrdersScreen: React.FC = () => {
     );
   }
 
-  // Count orders by status
-  const orderCounts = {
-    ALL: orders.length,
-    PENDING: orders.filter(o => o.status === 'PENDING').length,
-    PREPARING: orders.filter(o => o.status === 'PREPARING').length,
-    READY: orders.filter(o => o.status === 'READY').length,
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'top']}>
-      {/* Status Filters */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        <StatusFilter status="ALL" label="All" count={orderCounts.ALL} />
-        <StatusFilter status="PENDING" label="Pending" count={orderCounts.PENDING} />
-        <StatusFilter status="PREPARING" label="Preparing" count={orderCounts.PREPARING} />
-        <StatusFilter status="READY" label="Ready" count={orderCounts.READY} />
-      </ScrollView>
+      {/* Tab Bar */}
+      <View style={styles.tabBar}>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          const count = getOrderCount(tab.key);
+          
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, isActive && styles.activeTab]}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.tabContent}>
+                <Icon
+                  name={tab.icon}
+                  size={24}
+                  color={isActive ? tab.color : theme.colors.gray[500]}
+                />
+                <Text style={[styles.tabLabel, isActive && { color: tab.color }]}>
+                  {tab.label}
+                </Text>
+                {count > 0 && tab.key !== 'HISTORY' && (
+                  <Badge
+                    size={20}
+                    style={[styles.badge, { backgroundColor: tab.color }]}
+                  >
+                    {count}
+                  </Badge>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
       {/* Orders List */}
       <ScrollView
@@ -340,18 +606,25 @@ export const VendorOrdersScreen: React.FC = () => {
       >
         {filteredOrders.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Icon name="receipt" size={80} color={theme.colors.gray[300]} />
+            <Icon 
+              name={TABS.find(t => t.key === activeTab)?.icon || 'receipt'} 
+              size={80} 
+              color={theme.colors.gray[300]} 
+            />
             <Text style={styles.emptyTitle}>No orders</Text>
             <Text style={styles.emptyText}>
-              {selectedStatus === 'ALL' 
-                ? 'New orders will appear here'
-                : `No ${selectedStatus.toLowerCase()} orders`}
+              {activeTab === 'PENDING' && 'New orders will appear here'}
+              {activeTab === 'PREPARING' && 'Orders you\'re preparing will show here'}
+              {activeTab === 'READY' && 'Orders ready for pickup will show here'}
+              {activeTab === 'HISTORY' && 'Your completed orders will show here'}
             </Text>
           </View>
         ) : (
           filteredOrders.map(renderOrderCard)
         )}
       </ScrollView>
+
+      {renderOrderModal()}
     </SafeAreaView>
   );
 };
@@ -359,7 +632,7 @@ export const VendorOrdersScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.gray[50],
+    backgroundColor: theme.colors.gray[100],
   },
   loadingContainer: {
     flex: 1,
@@ -371,113 +644,175 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.gray[600],
   },
-  filterContainer: {
+  
+  // Tab Bar Styles
+  tabBar: {
+    flexDirection: 'row',
     backgroundColor: 'white',
-    maxHeight: 60,
+    paddingVertical: spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.gray[200],
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
-  filterContent: {
-    paddingHorizontal: spacing.lg,
+  tab: {
+    flex: 1,
     paddingVertical: spacing.sm,
-    gap: spacing.sm,
   },
-  filterChip: {
-    marginRight: spacing.sm,
+  activeTab: {
+    borderBottomWidth: 3,
+    borderBottomColor: theme.colors.primary,
   },
+  tabContent: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  tabLabel: {
+    fontSize: 12,
+    marginTop: 4,
+    color: theme.colors.gray[600],
+    fontWeight: '500',
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -12,
+  },
+  
+  // Order Card Styles
   ordersContent: {
-    padding: spacing.lg,
+    padding: spacing.md,
     paddingBottom: spacing.xl * 2,
   },
   orderCard: {
-    marginBottom: spacing.md,
     backgroundColor: 'white',
+    borderRadius: 12,
+    marginBottom: spacing.sm,
+    padding: spacing.md,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
-  orderHeader: {
+  pendingCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: theme.colors.warning,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  orderInfo: {
+    flex: 1,
+  },
+  orderNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
   },
   orderNumber: {
     fontSize: 18,
     fontWeight: '700',
     color: theme.colors.gray[900],
   },
-  tableNumber: {
-    fontSize: 16,
-    color: theme.colors.gray[700],
-    marginTop: 2,
+  tableChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.gray[100],
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: 12,
+    gap: 4,
   },
-  orderTime: {
-    fontSize: 14,
+  tableText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.gray[700],
+  },
+  timeText: {
+    fontSize: 12,
     color: theme.colors.gray[500],
     marginTop: 2,
   },
-  orderHeaderRight: {
-    alignItems: 'flex-end',
+  priceText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  
+  // Items Summary
+  itemsSummary: {
+    marginBottom: spacing.md,
+  },
+  itemText: {
+    fontSize: 14,
+    color: theme.colors.gray[700],
+    marginBottom: 2,
+  },
+  moreItemsText: {
+    fontSize: 12,
+    color: theme.colors.gray[500],
+    fontStyle: 'italic',
+  },
+  
+  // Quick Actions
+  quickActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  rejectButton: {
+    flex: 1,
+    borderColor: theme.colors.error,
+  },
+  rejectButtonText: {
+    color: theme.colors.error,
+    fontSize: 14,
+  },
+  acceptButton: {
+    flex: 2,
+    backgroundColor: theme.colors.success,
+  },
+  acceptButtonText: {
+    fontSize: 14,
+  },
+  readyButton: {
+    flex: 1,
+    backgroundColor: theme.colors.info,
+  },
+  completeButton: {
+    flex: 1,
+    backgroundColor: theme.colors.success,
+  },
+  actionButtonText: {
+    fontSize: 14,
+  },
+  
+  // History Status
+  historyStatus: {
+    marginTop: spacing.sm,
   },
   statusChip: {
-    marginBottom: spacing.xs,
+    alignSelf: 'flex-start',
   },
-  statusText: {
-    color: 'white',
+  completedChip: {
+    backgroundColor: theme.colors.success + '20',
+  },
+  cancelledChip: {
+    backgroundColor: theme.colors.error + '20',
+  },
+  statusChipText: {
     fontSize: 12,
     fontWeight: '600',
   },
-  totalAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.colors.gray[900],
-  },
-  divider: {
-    marginVertical: spacing.md,
-  },
-  itemsContainer: {
-    gap: spacing.sm,
-  },
-  orderItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  itemQuantity: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.gray[700],
-    width: 35,
-  },
-  itemDetails: {
-    flex: 1,
-  },
-  itemName: {
-    fontSize: 16,
-    color: theme.colors.gray[800],
-  },
-  specialInstructions: {
-    fontSize: 14,
-    color: theme.colors.gray[600],
-    fontStyle: 'italic',
-    marginTop: 2,
-  },
-  itemPrice: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: theme.colors.gray[700],
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  fullWidthButton: {
-    flex: 1,
-  },
-  completedText: {
-    textAlign: 'center',
-    color: theme.colors.gray[600],
-    fontSize: 14,
-    width: '100%',
-  },
+  
+  // Empty State
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -491,9 +826,153 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   emptyText: {
-    fontSize: 16,
-    color: theme.colors.gray[600],
+    fontSize: 14,
+    color: theme.colors.gray[500],
     textAlign: 'center',
     marginTop: spacing.sm,
+    paddingHorizontal: spacing.xl,
+  },
+  
+  // Modal Styles
+  modalContent: {
+    backgroundColor: 'white',
+    marginHorizontal: 20,
+    marginVertical: 100,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.gray[200],
+  },
+  modalHeaderLeft: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.gray[900],
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: theme.colors.gray[600],
+    marginTop: 2,
+  },
+  closeButton: {
+    padding: spacing.xs,
+  },
+  modalBody: {
+    maxHeight: 400,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.gray[800],
+    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  itemsDetail: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  itemDetail: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  itemDetailLeft: {
+    flexDirection: 'row',
+    flex: 1,
+    gap: spacing.sm,
+  },
+  itemQuantityDetail: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.gray[700],
+    minWidth: 30,
+  },
+  itemInfo: {
+    flex: 1,
+  },
+  itemNameDetail: {
+    fontSize: 16,
+    color: theme.colors.gray[800],
+  },
+  specialNote: {
+    fontSize: 14,
+    color: theme.colors.gray[600],
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  itemPriceDetail: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: theme.colors.gray[700],
+  },
+  orderSummarySection: {
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.gray[200],
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.xs,
+  },
+  summaryLabel: {
+    fontSize: 14,
+    color: theme.colors.gray[600],
+  },
+  summaryValue: {
+    fontSize: 14,
+    color: theme.colors.gray[800],
+    fontWeight: '500',
+  },
+  totalRow: {
+    marginTop: spacing.sm,
+    paddingTop: spacing.sm,
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.gray[800],
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.primary,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.gray[200],
+  },
+  modalRejectButton: {
+    flex: 1,
+    borderColor: theme.colors.error,
+  },
+  modalAcceptButton: {
+    flex: 2,
+    backgroundColor: theme.colors.success,
+  },
+  modalFullButton: {
+    flex: 1,
   },
 });
